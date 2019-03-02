@@ -1,2 +1,2 @@
 # RLBot-Calculator
-A bot that focuses on kickoffs and open nets. Sometimes breaks the meta.
+A bot that focuses on kickoffs. Sometimes breaks the meta.

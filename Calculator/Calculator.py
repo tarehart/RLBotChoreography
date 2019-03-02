@@ -1,7 +1,3 @@
-import math
-import random
-import time
-
 from rlbot.agents.base_agent import BaseAgent, SimpleControllerState
 from rlbot.utils.structures.game_data_struct import GameTickPacket
 from rlbot.utils.game_state_util import GameState, BallState, CarState, Physics, Vector3, Rotator
@@ -37,34 +33,34 @@ class Calculator(BaseAgent):
 
         #additional processing not done by RLU
         self.kickoff_pause  = packet.game_info.is_kickoff_pause
+        self.round_active   = packet.game_info.is_round_active
         self.dt             = self.info.time - self.last_time
         self.last_time      = self.info.time
         self.last_touch     = packet.game_ball.latest_touch.player_name
 
         self.controls = SimpleControllerState()
 
+        if not self.state == "kickoff" and self.kickoff_pause and self.round_active:
+            self.kickoff_pos    = None
+            self.timer          = 0.0
+            self.action         = None
+            self.state          = "kickoff"
+        
         if self.state == None:
-            if self.kickoff_pause:
-                self.kickoff_pos    = None
-                self.timer          = 0.0
-                self.state          = "kickoff"
-            else:
-                self.state          = "ATBA"
+            self.state          = "normal"
 
         if self.state == "kickoff":
             Kickoff.kickoff(self)
 
-            if self.timer >= 2.5 or self.last_touch != '':
+            if self.timer >= 2.6 or self.last_touch != '':
                 self.state  = None
                 self.action = None
                 self.send_quick_chat(QuickChats.CHAT_EVERYONE, QuickChats.Reactions_Calculated)
 
-        if self.state == "ATBA":
+        if self.state == "normal":
             self.action     = Drive(self.info.my_car,self.info.ball.pos,2300)
             self.action.step(self.dt)
             self.controls   = self.action.controls
-            self.action     = None
-            self.state      = None
 
         #finding the size of the Rocket League window
         def callback(hwnd, win_rect):
