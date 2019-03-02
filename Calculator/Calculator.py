@@ -3,10 +3,10 @@ from rlbot.utils.structures.game_data_struct import GameTickPacket
 from rlbot.utils.game_state_util import GameState, BallState, CarState, Physics, Vector3, Rotator
 from rlbot.utils.structures.quick_chats import QuickChats
 
-from RLUtilities.Maneuvers import Drive, AirDodge
+from RLUtilities.Maneuvers import Drive, AirDodge, AerialTurn
 from RLUtilities.GameInfo import GameInfo
 from RLUtilities.Simulation import Car, Ball, Input
-from RLUtilities.LinearAlgebra import vec2, vec3, normalize, norm, dot
+from RLUtilities.LinearAlgebra import vec3, norm
 
 import Render
 import Kickoff
@@ -23,9 +23,17 @@ class Calculator(BaseAgent):
         self.last_time      = 0.0
         self.dt             = 1.0 / 120.0
 
+        self.goals          = 0
+
         self.timer          = 0.0
         self.kickoff_pos    = None
         self.state          = None
+        self.targets        = []
+
+        #bot parameters
+        self.target_range   = 200
+        self.low_boost      = 25
+        self.max_ball_dist  = 3000
 
 
     def get_output(self, packet):
@@ -37,30 +45,105 @@ class Calculator(BaseAgent):
         self.dt             = self.info.time - self.last_time
         self.last_time      = self.info.time
         self.last_touch     = packet.game_ball.latest_touch.player_name
+            #trashtalk
+        if packet.game_cars[self.index].score_info.goals == self.goals + 1:
+            self.send_quick_chat(QuickChats.CHAT_EVERYONE, QuickChats.Reactions_Calculated)
+            
+        self.goals          = packet.game_cars[self.index].score_info.goals
 
+        #resets controls each tick
         self.controls = SimpleControllerState()
 
-        if not self.state == "kickoff" and self.kickoff_pause and self.round_active:
-            self.kickoff_pos    = None
-            self.timer          = 0.0
-            self.action         = None
-            self.state          = "kickoff"
+        #choose state
+        if not self.round_active:
+            self.state = None
+        elif not self.state == "kickoff":
+            if self.kickoff_pause:
+                self.kickoff_pos    = None
+                self.timer          = 0.0
+                self.action         = None
+                self.state          = "kickoff"
         
-        if self.state == None:
-            self.state          = "normal"
+            elif not self.info.my_car.on_ground:
+                self.state          = "recovery"
+                self.action         = self.action = AerialTurn(self.info.my_car)
 
+            elif self.state == None:
+                self.state          = "normal"
+
+
+        #kickoff state
         if self.state == "kickoff":
             Kickoff.kickoff(self)
 
+            #exit kickoff state
             if self.timer >= 2.6 or self.last_touch != '':
                 self.state  = None
                 self.action = None
-                self.send_quick_chat(QuickChats.CHAT_EVERYONE, QuickChats.Reactions_Calculated)
 
-        if self.state == "normal":
-            self.action     = Drive(self.info.my_car,self.info.ball.pos,2300)
+        #recovery state
+        elif self.state == "recovery":
+            self.action.step(self.dt)
+            self.controls           = self.action.controls
+            self.controls.throttle  = 1.0
+            
+            #exit recovery state
+            if self.info.my_car.on_ground == True:
+                self.state  = None
+                self.action = None
+
+        #normal state
+        elif self.state == "normal":
+            #reseting targets
+            if self.timer >= 0.5:
+                self.timer      = 0.0
+                self.targets    = []
+
+            #getting out of goal
+            if self.info.my_car.pos[1] > 5120:
+                self.targets = [(vec3(0,5000,0))]
+            elif self.info.my_car.pos[1] < -5120:
+                self.targets = [(vec3(0,-5000,0))]
+
+            if len(self.targets) == 0:
+                #defending
+                if norm(self.info.my_goal.center - self.info.my_car.pos)> norm(self.info.my_goal.center - self.info.ball.pos):
+                    self.targets = [(self.info.my_goal.center)]
+
+                #large boost
+                elif self.info.my_car.boost <= self.low_boost and norm(self.info.my_car.pos - self.info.ball.pos) > self.max_ball_dist:
+                    active_pads = []
+                    for pad in self.info.boost_pads:
+                        if pad.is_active:
+                            active_pads.append(pad)
+
+                    if len(active_pads) != 0:
+                        closest_pad = active_pads[0]
+                        for pad in active_pads:
+                            if norm(pad.pos - self.info.ball.pos) < norm(closest_pad.pos - self.info.ball.pos):
+                                closest_pad = pad
+                        self.targets = [(closest_pad.pos)]
+
+                #ball
+                else:
+                    self.targets = [(self.info.ball.pos)]
+
+            #convenient boost
+            if len(self.targets) >= 1:
+                pass
+                #self.targets.insert(0,pad.pos)
+                #TODO
+            
+            #reach target
+            if len(self.targets) > 0 and norm(self.targets[0]-self.info.my_car.pos) < self.target_range:
+                del self.targets[0]
+
+            self.action     = Drive(self.info.my_car,self.targets[0],1700)
+
             self.action.step(self.dt)
             self.controls   = self.action.controls
+            self.timer      += self.dt
+
 
         #finding the size of the Rocket League window
         def callback(hwnd, win_rect):
@@ -76,5 +159,6 @@ class Calculator(BaseAgent):
 
         #Rendering
         Render.debug(self)
+        Render.targets(self)
 
         return self.controls
