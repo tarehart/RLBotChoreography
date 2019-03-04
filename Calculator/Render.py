@@ -4,12 +4,23 @@ import math
 def debug(self):
     """prints debug info"""
     self.renderer.begin_rendering("debug")
-    self.renderer.draw_string_2d(self.RLwindow[2]*0.75, 10, 2, 2, str(self.state), self.renderer.red())
-    self.renderer.draw_string_2d(self.RLwindow[2]*0.7, 40, 1, 1, "car pos: " + str(self.info.my_car.pos), self.renderer.black())
-    self.renderer.draw_string_2d(self.RLwindow[2]*0.7, 55, 1, 1, "timer: " + str(self.timer), self.renderer.black())
-    self.renderer.draw_string_2d(self.RLwindow[2]*0.7, 70, 1, 1, "target speed: " + str(self.target_speed), self.renderer.black())
-    if not self.target == None:
-        self.renderer.draw_string_2d(self.RLwindow[2]*0.7, 85, 1, 1, "angle to target: " + str(math.atan2(dot(self.target,self.info.my_car.theta)[1], -dot(self.target,self.info.my_car.theta)[0])), self.renderer.black())
+    if self.RLwindow == [0]*4:
+        self.renderer.draw_string_2d(20, 10, 2, 2, str(self.state), self.renderer.red())
+        self.renderer.draw_string_2d(10, 40, 1, 1, "car pos: " + str(self.info.my_car.pos), self.renderer.black())
+        self.renderer.draw_string_2d(10, 55, 1, 1, "timer: " + str(self.timer), self.renderer.black())
+        self.renderer.draw_string_2d(10, 70, 1, 1, "target speed: " + str(self.target_speed), self.renderer.black())
+        self.renderer.draw_string_2d(10, 85, 1, 1, "action: " + str(self.action), self.renderer.black())
+        if not self.target == None:
+            self.renderer.draw_string_2d(10, 100, 1, 1, "angle to target: " + str(math.atan2(dot(self.info.my_car.theta, self.target)[1], -dot(self.info.my_car.theta, self.target)[0])), self.renderer.black())
+    
+    else:
+        self.renderer.draw_string_2d(self.RLwindow[2]*0.7, 10, 2, 2, str(self.state), self.renderer.red())
+        self.renderer.draw_string_2d(self.RLwindow[2]*0.65, 40, 1, 1, "car pos: " + str(self.info.my_car.pos), self.renderer.black())
+        self.renderer.draw_string_2d(self.RLwindow[2]*0.65, 55, 1, 1, "timer: " + str(self.timer), self.renderer.black())
+        self.renderer.draw_string_2d(self.RLwindow[2]*0.65, 70, 1, 1, "target speed: " + str(self.target_speed), self.renderer.black())
+        self.renderer.draw_string_2d(self.RLwindow[2]*0.65, 85, 1, 1, "action: " + str(self.action), self.renderer.black())
+        if not self.target == None:
+            self.renderer.draw_string_2d(self.RLwindow[2]*0.65, 100, 1, 1, "angle to target: " + str(math.atan2(dot(self.info.my_car.theta, self.target)[1], -dot(self.info.my_car.theta, self.target)[0])), self.renderer.black())
     self.renderer.end_rendering()
 
 

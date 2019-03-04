@@ -12,7 +12,7 @@ import Render
 import Kickoff
 
 import math
-import win32gui
+#import win32gui
 
 class Calculator(BaseAgent):
     def __init__(self, name, team, index):
@@ -35,11 +35,13 @@ class Calculator(BaseAgent):
         #bot parameters
         self.target_range   = 200
         self.low_boost      = 25
-        self.max_ball_dist  = 3000
+        self.max_ball_dist  = 4000
         self.def_extra_dist = 500
         self.turn_c_quality = 20
         self.min_target_s   = 1000
         self.dodge_dist     = 200
+
+        self.RLwindow = [0]*4
 
 
     def get_output(self, packet):
@@ -140,12 +142,15 @@ class Calculator(BaseAgent):
                 else:
                     self.target = self.info.ball.pos
 
-            angle_to_target = math.atan2(dot(self.target, self.info.my_car.theta)[1], -dot(self.target, self.info.my_car.theta)[0])
+            angle_to_target = math.atan2(dot(self.info.my_car.theta, self.target)[1], -dot(self.info.my_car.theta, self.target)[0])
 
             #select maneuver
             if not isinstance(self.action, AirDodge):
-                if (-math.pi/4.0) <= angle_to_target <= (math.pi/4.0):
+                if (-math.pi/16.0) <= angle_to_target <= (math.pi/16.0):
                     self.action = AirDodge(self.info.my_car,0.2,self.target)
+                    self.timer  = 0.0
+                elif norm(self.info.ball.pos - self.info.my_car.pos) < self.dodge_dist: 
+                    self.action = AirDodge(self.info.my_car,0.2,self.info.their_goal.center)
                     self.timer  = 0.0
                 else:
                     self.action = Drive(self.info.my_car,self.target,self.target_speed)
@@ -156,28 +161,27 @@ class Calculator(BaseAgent):
                 if self.timer >= 0.5:
                     self.action = None
             
+            #temporary fix for stopping when defending
+            if self.state == "defence" and norm(self.info.my_car.vel) <= 50:
+                self.action = self.action = Drive(self.info.my_car,self.target,self.target_speed)
+ 
+            #Drive
+            if isinstance(self.action, Drive):
+                #target speed 
+                speed = norm(self.info.my_car.vel)
+                r = -6.901E-11 * speed**4 + 2.1815E-07 * speed**3 - 5.4437E-06 * speed**2 + 0.12496671 * speed + 157
+
+                if (norm(self.target - (self.info.my_car.pos + dot(self.info.my_car.theta,vec3(0,r,0)))) < r or norm(self.target - (self.info.my_car.pos + dot(self.info.my_car.theta,vec3(0,-r,0)))) < r) and not self.target_speed < self.min_target_s:
+                    self.target_speed += -50
+                    self.action = Drive(self.info.my_car,self.target,self.target_speed)
+                elif self.target_speed < 2300:
+                    self.target_speed += 50
+                    self.action = Drive(self.info.my_car,self.target,self.target_speed)
+
             #maneuver tick
             if self.action != None:
                 self.action.step(self.dt)
                 self.controls   = self.action.controls
- 
-            #Drive
-            if isinstance(self.action, Drive):
-                #handbrake
-                if (-math.pi/2.0) >= angle_to_target >= (math.pi/2.0):
-                    self.controls.handbrake = True
-
-                #target speed 
-                else:
-                    speed = norm(self.info.my_car.vel)
-                    r = -6.901E-11 * speed**4 + 2.1815E-07 * speed**3 - 5.4437E-06 * speed**2 + 0.12496671 * speed + 157
-
-                    if (norm(self.target - (self.info.my_car.pos + dot(self.info.my_car.theta,vec3(0,r,0)))) < r or norm(self.target - (self.info.my_car.pos + dot(self.info.my_car.theta,vec3(0,-r,0)))) < r) and not self.target_speed < self.min_target_s:
-                        self.target_speed += -50
-                        self.action = Drive(self.info.my_car,self.target,self.target_speed)
-                    elif self.target_speed < 2300:
-                        self.target_speed += 50
-                        self.action = Drive(self.info.my_car,self.target,self.target_speed)
 
             #exit either state
             if (self.state == "defence" and norm(self.info.my_goal.center - self.info.my_car.pos) < norm(self.info.my_goal.center - self.info.ball.pos)) or (norm(self.target - self.info.my_car.pos) < self.target_range):
@@ -194,7 +198,8 @@ class Calculator(BaseAgent):
                 self.state  = None
                 self.action = None
 
-
+        #commented out for tournament
+        """
         #finding the size of the Rocket League window
         def callback(hwnd, win_rect):
             if "Rocket League" in win32gui.GetWindowText(hwnd):
@@ -206,11 +211,13 @@ class Calculator(BaseAgent):
 
         self.RLwindow = [0] * 4
         win32gui.EnumWindows(callback, self.RLwindow)
+        """
 
         #Rendering
         Render.debug(self)
         Render.turn_circles(self)
         if not self.target == None:
             Render.target(self)
+        
 
         return self.controls
