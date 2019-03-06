@@ -10,8 +10,9 @@ def debug(self):
         self.renderer.draw_string_2d(10, 55, 1, 1, "timer: " + str(self.timer), self.renderer.black())
         self.renderer.draw_string_2d(10, 70, 1, 1, "target speed: " + str(self.target_speed), self.renderer.black())
         self.renderer.draw_string_2d(10, 85, 1, 1, "action: " + str(self.action), self.renderer.black())
+        self.renderer.draw_string_2d(10, 100, 1, 1, "team: " + str(self.team), self.renderer.black())
         if not self.target == None:
-            self.renderer.draw_string_2d(10, 100, 1, 1, "angle to target: " + str(math.atan2(dot(self.info.my_car.theta, self.target)[1], -dot(self.info.my_car.theta, self.target)[0])), self.renderer.black())
+            self.renderer.draw_string_2d(10, 115, 1, 1, "angle to target: " + str(math.atan2(dot(self.info.my_car.theta, self.target)[1], -dot(self.info.my_car.theta, self.target)[0])), self.renderer.black())
     
     else:
         self.renderer.draw_string_2d(self.RLwindow[2]*0.7, 10, 2, 2, str(self.state), self.renderer.red())

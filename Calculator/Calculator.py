@@ -18,6 +18,7 @@ class Calculator(BaseAgent):
     def __init__(self, name, team, index):
         self.index          = index
         self.info           = GameInfo(index, team)
+        self.team           = team
         self.controls       = SimpleControllerState()
         self.action         = None
 
@@ -81,8 +82,11 @@ class Calculator(BaseAgent):
                 self.action         = None
                 self.target_speed   = 2300
                 self.state          = "defence"
-
-                sign = 1 if self.team == 0 else -1
+		
+                if self.team == 0:
+                    sign = -1
+                else:
+                    sign = 1
                 self.target = vec3(0,sign*4000,0)
 
             elif self.info.my_car.pos[1] > 5120 or self.info.my_car.pos[1] < -5120:
