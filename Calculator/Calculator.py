@@ -31,16 +31,17 @@ class Calculator(BaseAgent):
         self.kickoff_pos    = None
         self.state          = None
         self.target         = None
-        self.target_speed   = 2300
+        self.target_speed   = 1800
+        self.drift          = False
 
         #bot parameters
         self.target_range   = 200
         self.low_boost      = 25
         self.max_ball_dist  = 4000
-        self.def_extra_dist = 500
+        self.def_extra_dist = 800
         self.turn_c_quality = 20
         self.min_target_s   = 1000
-        self.dodge_dist     = 200
+        self.dodge_dist     = 400
 
         self.RLwindow = [0]*4
 
@@ -87,7 +88,15 @@ class Calculator(BaseAgent):
                     sign = -1
                 else:
                     sign = 1
-                self.target = vec3(0,sign*4000,0)
+                
+                #temporary 2v2 for Cow
+                if len(self.info.teammates) > 0:
+                    if self.info.ball.pos > 0:
+                        self.target = vec3(3000,sign*4000,0)
+                    else:
+                        self.target = vec3(-3000,sign*4000,0)
+                else:
+                    self.target = vec3(0,sign*4000,0)
 
             elif self.info.my_car.pos[1] > 5120 or self.info.my_car.pos[1] < -5120:
                 self.target         = vec3(0,5000,0) if self.info.my_car.pos[1] > 5120 else vec3(0,-5000,0)
@@ -146,16 +155,25 @@ class Calculator(BaseAgent):
                 else:
                     self.target = self.info.ball.pos
 
-            angle_to_target = math.atan2(dot(self.info.my_car.theta, self.target)[1], -dot(self.info.my_car.theta, self.target)[0])
+            forward_target  = dot(self.target - self.info.my_car.pos, self.info.my_car.theta)[0]
+            right_target    = dot(self.target - self.info.my_car.pos, self.info.my_car.theta)[1]
+            angle_to_target = math.atan2(right_target, forward_target)
+
+            forward_goal    = dot(self.info.their_goal.center - self.info.my_car.pos, self.info.my_car.theta)[0]
+            right_goal      = dot(self.info.their_goal.center - self.info.my_car.pos, self.info.my_car.theta)[1]
+            angle_to_goal   = math.atan2(right_goal, forward_goal)
 
             #select maneuver
             if not isinstance(self.action, AirDodge):
-                if (-math.pi/16.0) <= angle_to_target <= (math.pi/16.0):
-                    self.action = AirDodge(self.info.my_car,0.2,self.target)
-                    self.timer  = 0.0
-                elif norm(self.info.ball.pos - self.info.my_car.pos) < self.dodge_dist: 
+                #shooting
+                if norm(self.info.ball.pos - self.info.my_car.pos) < self.dodge_dist and (angle_to_target - (math.pi/10.0) <= angle_to_goal <= angle_to_target + (math.pi/10.0)): 
                     self.action = AirDodge(self.info.my_car,0.2,self.info.their_goal.center)
                     self.timer  = 0.0
+                #dodging
+                elif (-math.pi/24.0) <= angle_to_target <= (math.pi/24.0) and norm(self.info.my_car.vel) > 700 and norm(self.info.ball.pos - self.info.my_car.pos) > 1000 and not self.state == "defence":
+                    self.action = AirDodge(self.info.my_car,0.2,self.target)
+                    self.timer  = 0.0
+                #Drive
                 else:
                     self.action = Drive(self.info.my_car,self.target,self.target_speed)
                 
@@ -164,21 +182,22 @@ class Calculator(BaseAgent):
                 self.timer += self.dt
                 if self.timer >= 0.5:
                     self.action = None
-            
-            #temporary fix for stopping when defending
-            if self.state == "defence" and norm(self.info.my_car.vel) <= 50:
-                self.action = self.action = Drive(self.info.my_car,self.target,self.target_speed)
  
             #Drive
             if isinstance(self.action, Drive):
-                #target speed 
                 speed = norm(self.info.my_car.vel)
                 r = -6.901E-11 * speed**4 + 2.1815E-07 * speed**3 - 5.4437E-06 * speed**2 + 0.12496671 * speed + 157
 
-                if (norm(self.target - (self.info.my_car.pos + dot(self.info.my_car.theta,vec3(0,r,0)))) < r or norm(self.target - (self.info.my_car.pos + dot(self.info.my_car.theta,vec3(0,-r,0)))) < r) and not self.target_speed < self.min_target_s:
+                #handbrake
+                self.drift = False
+                if (math.pi/2.0) <= angle_to_target or angle_to_target <= (-math.pi/2.0):
+                    self.drift = True
+
+                #target speed 
+                elif (norm(self.target - (self.info.my_car.pos + dot(self.info.my_car.theta,vec3(0,r,0)))) < r or norm(self.target - (self.info.my_car.pos + dot(self.info.my_car.theta,vec3(0,-r,0)))) < r) and not self.target_speed < self.min_target_s:
                     self.target_speed += -50
                     self.action = Drive(self.info.my_car,self.target,self.target_speed)
-                elif self.target_speed < 2300:
+                elif self.target_speed < 1800:
                     self.target_speed += 50
                     self.action = Drive(self.info.my_car,self.target,self.target_speed)
 
@@ -186,6 +205,7 @@ class Calculator(BaseAgent):
             if self.action != None:
                 self.action.step(self.dt)
                 self.controls   = self.action.controls
+                self.controls.handbrake = self.drift
 
             #exit either state
             if (self.state == "defence" and norm(self.info.my_goal.center - self.info.my_car.pos) < norm(self.info.my_goal.center - self.info.ball.pos)) or (norm(self.target - self.info.my_car.pos) < self.target_range):

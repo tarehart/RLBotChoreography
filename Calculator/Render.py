@@ -9,10 +9,15 @@ def debug(self):
         self.renderer.draw_string_2d(10, 40, 1, 1, "car pos: " + str(self.info.my_car.pos), self.renderer.black())
         self.renderer.draw_string_2d(10, 55, 1, 1, "timer: " + str(self.timer), self.renderer.black())
         self.renderer.draw_string_2d(10, 70, 1, 1, "target speed: " + str(self.target_speed), self.renderer.black())
-        self.renderer.draw_string_2d(10, 85, 1, 1, "action: " + str(self.action), self.renderer.black())
-        self.renderer.draw_string_2d(10, 100, 1, 1, "team: " + str(self.team), self.renderer.black())
+        self.renderer.draw_string_2d(10, 85, 1, 1, "drift: " + str(self.drift), self.renderer.black())
+        self.renderer.draw_string_2d(10, 100, 1, 1, "handbrake: " + str(self.controls.handbrake), self.renderer.black())
         if not self.target == None:
-            self.renderer.draw_string_2d(10, 115, 1, 1, "angle to target: " + str(math.atan2(dot(self.info.my_car.theta, self.target)[1], -dot(self.info.my_car.theta, self.target)[0])), self.renderer.black())
+            forward_target  = dot(self.target - self.info.my_car.pos, self.info.my_car.theta)[0]
+            right_target    = dot(self.target - self.info.my_car.pos, self.info.my_car.theta)[1]
+            angle_to_target = math.atan2(right_target, forward_target)
+            self.renderer.draw_string_2d(10, 115, 1, 1, "angle to target: " + str(angle_to_target), self.renderer.black())
+            self.renderer.draw_string_2d(10, 130, 1, 1, "forwd to target: " + str(forward_target), self.renderer.black())
+            self.renderer.draw_string_2d(10, 145, 1, 1, "right to target: " + str(right_target), self.renderer.black())
     
     else:
         self.renderer.draw_string_2d(self.RLwindow[2]*0.7, 10, 2, 2, str(self.state), self.renderer.red())
