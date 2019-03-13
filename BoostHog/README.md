@@ -1,4 +1,3 @@
-# RLBot-BoostHog
+# BoostHog
 A bot for Rocket League which strives to be the very best at taking all the boost.
-
-I don't even know what I'm doing. Good luck!
+No longer under development, but I have moved onto a bot under a different name that shares some of the code found here.
