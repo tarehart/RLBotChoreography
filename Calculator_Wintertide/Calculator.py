@@ -11,9 +11,14 @@ from RLUtilities.LinearAlgebra import vec3, norm, dot
 import Render
 import Kickoff
 
+import sys
 import math
-#import win32gui
+try:
+    import win32gui
+except ImportError:
+    pass
 
+#Huge thanks to Lie Algebra Cow for fixing some last-minute bugs in time for the tournament.
 class Calculator(BaseAgent):
     def __init__(self, name, team, index):
         self.index          = index
@@ -222,20 +227,18 @@ class Calculator(BaseAgent):
                 self.state  = None
                 self.action = None
 
-        #commented out for tournament
-        """
-        #finding the size of the Rocket League window
-        def callback(hwnd, win_rect):
-            if "Rocket League" in win32gui.GetWindowText(hwnd):
-                rect = win32gui.GetWindowRect(hwnd)
-                win_rect[0] = rect[0]
-                win_rect[1] = rect[1]
-                win_rect[2] = rect[2] - rect[0]
-                win_rect[3] = rect[3] - rect[1]
+        if 'win32gui' in sys.modules:
+            #finding the size of the Rocket League window
+            def callback(hwnd, win_rect):
+                if "Rocket League" in win32gui.GetWindowText(hwnd):
+                    rect = win32gui.GetWindowRect(hwnd)
+                    win_rect[0] = rect[0]
+                    win_rect[1] = rect[1]
+                    win_rect[2] = rect[2] - rect[0]
+                    win_rect[3] = rect[3] - rect[1]
 
-        self.RLwindow = [0] * 4
-        win32gui.EnumWindows(callback, self.RLwindow)
-        """
+            self.RLwindow = [0] * 4
+            win32gui.EnumWindows(callback, self.RLwindow)
 
         #Rendering
         Render.debug(self)
