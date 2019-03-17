@@ -10,12 +10,12 @@ class Calculator(BaseAgent):
 
     def initialize_agent(self):
         Data.init(self, SimpleControllerState())
+        #Render.init_colours(self)
 
     def get_output(self, packet: GameTickPacket) -> SimpleControllerState:
         Data.process(self, packet)
         Brain.think(self)
         Exec.actions(self)
-        Render.all(self)
+        if not self.m_ended and (self.ko_pause or self.r_active):
+            Render.all(self)
         return self.ctrl
-
-#https://discordapp.com/channels/348658686962696195/348661571297214465/555450647806214164

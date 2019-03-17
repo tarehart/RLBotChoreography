@@ -24,10 +24,20 @@ def init(s, SCS):
     s.dt            = 1 / 120.0
     s.last_time     = 0.0
 
+    s.calc_index = 0
 
 
 def process(s, p):
     """processes gametick packet"""
+
+    #calc_index
+    i = 0
+    for index in range(len(p.game_cars)):
+        if 'Calculator' in p.game_cars[index].name:
+            if index == s.index:
+                s.calc_index = i
+                break
+            i += 1
 
     #player
     s.player.pos    = a3v(p.game_cars[s.index].physics.location)
@@ -66,3 +76,4 @@ def process(s, p):
     s.last_time     = s.time
     s.r_active      = p.game_info.is_round_active
     s.ko_pause      = p.game_info.is_kickoff_pause
+    s.m_ended       = p.game_info.is_match_ended
