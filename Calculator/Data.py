@@ -1,12 +1,10 @@
 """Data Processing and Managment"""
 
-from RLClasses  import *
-from RLFunc     import *
+from RLClasses  import Car, Ball, BoostPad, Circle
+from RLFunc     import a3l, a3r, a3v, orient_matrix, turn_r
 
-def init(s, SCS):
+def init(s):
     """runs initialisation"""
-    s.ctrl      = SCS
-
     s.player         = Car(s.index)
     s.ball           = Ball()
 
@@ -25,7 +23,6 @@ def init(s, SCS):
     s.last_time     = 0.0
 
     s.calc_index = 0
-
 
 def process(s, p):
     """processes gametick packet"""
@@ -46,8 +43,8 @@ def process(s, p):
     s.player.ang_vel= a3v(p.game_cars[s.index].physics.angular_velocity)
     s.player.on_g   = p.game_cars[s.index].has_wheel_contact
     s.player.sonic  = p.game_cars[s.index].is_super_sonic
-    #s.player.orient_m = orientMat(s.player.rot)
-    #s.player.turn_r  = turning_radius(np.linalg.norm(s.player.vel))
+    s.player.A      = orient_matrix(s.player.rot)
+    s.player.turn_r = turn_r(s.player.vel)
 
     #ball
     s.ball.pos      = a3v(p.game_ball.physics.location)
