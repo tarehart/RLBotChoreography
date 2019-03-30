@@ -1,6 +1,6 @@
 """Data Processing and Managment"""
 
-from RLClasses  import Car, Ball, BoostPad, Circle
+from RLClasses  import Car, Ball, BoostPad
 from RLFunc     import a3l, a3r, a3v, orient_matrix, turn_r
 
 def init(s):

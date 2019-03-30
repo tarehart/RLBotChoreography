@@ -4,8 +4,6 @@ import numpy as np
 from math               import sin, cos
 from scipy.interpolate  import interp1d
 
-from RLClasses import Circle
-
 def a3l(L):
     """converts list to numpy array"""
     return np.array([L[0], L[1], L[2]])
@@ -59,11 +57,31 @@ def world(V, A):
     """transforms local into global/world coordinates"""
     return np.dot(V, A)
 
-def circle_from_points(A,B,C):
-    """creates a circle defined by three points"""
-    A = np.array(A)
-    B = np.array(B)
-    C = np.array(C)
+
+def get_steer(v, r):
+    """aproximated steer for a desired curvature and velocity."""
+    #interpolation of graph for max curvature given speed
+    s = np.array([0, 500, 1000, 1500, 1750, 2300])
+    k = np.array([0.0069, 0.00396, 0.00235, 0.001375, 0.0011, 0.00088])
+    f = interp1d(s, k)
+
+    max_k   = f(np.linalg.norm(v))
+    want_k  = 1 / r
+
+    if max_k >= want_k:
+        #curvature is roughly proportional to steer
+        return want_k / max_k
+    else:
+        return 1.0
+
+def turn_r(v):
+    """minimum turning radius for given velocity"""
+    s = np.linalg.norm(v)
+    return -6.901E-11 * s**4 + 2.1815E-07 * s**3 - 5.4437E-06 * s**2 + 0.12496671 * s + 157
+
+def radius_from_points(A,B,C):
+    """finds the radius of a circle defined by three points"""
+    #the centre of the circle is the intersection of the perpendicular bisectors to AB and BC
     
     midAB = 0.5*(A+B)
     midBC = 0.5*(B+C)
@@ -86,33 +104,20 @@ def circle_from_points(A,B,C):
     
     x = (slopeABperp*midAB[0] - midAB[1] - slopeBCperp*midBC[0] + midBC[1])/(slopeABperp - slopeBCperp)
     y = slopeABperp*(x - midAB[0]) + midAB[1]
+    O = np.array([x,y])
+    r = np.linalg.norm(O-A)
     
-    centre = np.array([x,y,0])
-    
-    r = np.linalg.norm(centre-A)
-    
-    return Circle(r,centre)
+    return r
 
-def get_steer(v, r):
-    """aproximated steer for a desired curvature and velocity."""
-    #interpolation of graph for max curvature given speed
-    s = np.array([0, 500, 1000, 1500, 1750, 2300])
-    k = np.array([0.0069, 0.00396, 0.00235, 0.001375, 0.0011, 0.00088])
-    f = interp1d(s, k)
-
-    max_k   = f(np.linalg.norm(v))
-    want_k  = 1 / r
-
-    if max_k >= want_k:
-        #curvature is roughly proportional to steer
-        return want_k / max_k
-    else:
-        return 1.0
-
-def turn_r(v):
-    """minimum turning radius for given velocity"""
-    s = np.linalg.norm(v)
-    return -6.901E-11 * s**4 + 2.1815E-07 * s**3 - 5.4437E-06 * s**2 + 0.12496671 * s + 157
+def gen_circle_points(r,centre,A,n):
+    """generates n evenly spaced points on the circle in 3D"""
+    points = np.zeros((n+1,3))
+    theta  = np.linspace(0,2*np.pi,n+1)
+    points[:,0] += r*np.cos(theta)
+    points[:,1] += r*np.sin(theta)
+    points = np.dot(points,A)
+    points += centre
+    return points
 
 def bezier_quadratic(p0, p1, p2, t):
     """returns a position on bezier curve defined by 3 points at t"""

@@ -1,4 +1,4 @@
-Discord Name: Calculated_Will (UTC+1)#4544
+Discord Name: Calculated_Will#4544
 Bot Name: Calculator
 Bot Requirements/Setup Instructions: Python; math; RLUtilities
 Entering the 1v1 bracket? yes
