@@ -27,6 +27,7 @@ class Ball:
         self.vel        = np.zeros(3)
         self.ang_vel    = np.zeros(3)
         self.last_t     = ""
+        self.predict    = None
 
 class BoostPad:
     def __init__(self, index, pos):

@@ -23,13 +23,16 @@ s.renderer.create_color(a, r, g, b)
 """
 
 from RLwindow   import get_window_size
-from RLFunc     import a3l, world, gen_circle_points
+from RLFunc     import a3l, a3v, world, gen_circle_points
 
 def everything(s):
     """renders everything it can render"""
     debug(s)
     ctrl(s)
-    turn_circles(s,20)
+    turn_circles(s,10)
+    if s.calc_index == 0:
+        ball_predict(s)
+        ball(s,10)
 
 def debug(s):
     """prints debug info"""
@@ -59,17 +62,26 @@ def debug(s):
 
         #text
     line1   = ('index: ',       str(s.index))
-    line2   = ('player pos: ',  str((int(s.player.pos[0]),int(s.player.pos[1]),int(s.player.pos[2]))))
-    line3   = ('turn radius: ', str(s.player.turn_r)[:10])
+    line2   = ('human ctrl: ',  str(s.human))
+    line3   = ('player pos: ',  str((int(s.player.pos[0]),int(s.player.pos[1]),int(s.player.pos[2]))))
+    line4   = ('turn radius: ', str(s.player.turn_r)[:10])
+    #line5   = ('label: ',       str(value))
+    #line6   = ('label: ',       str(value))
 
     loc     = [loc[0]+5,loc[1]+5]
     s.renderer.draw_string_2d(loc[0], loc[1]   , 1, 1, line1[0], label)
     s.renderer.draw_string_2d(loc[0], loc[1]+15, 1, 1, line2[0], label)
     s.renderer.draw_string_2d(loc[0], loc[1]+30, 1, 1, line3[0], label)
+    s.renderer.draw_string_2d(loc[0], loc[1]+45, 1, 1, line4[0], label)
+    #s.renderer.draw_string_2d(loc[0], loc[1]+60, 1, 1, line5[0], label)
+    #s.renderer.draw_string_2d(loc[0], loc[1]+75, 1, 1, line6[0], label)
     loc     = [loc[0]+90*mw,loc[1]]
     s.renderer.draw_string_2d(loc[0], loc[1]   , 1, 1, line1[1], val)
     s.renderer.draw_string_2d(loc[0], loc[1]+15, 1, 1, line2[1], val)
     s.renderer.draw_string_2d(loc[0], loc[1]+30, 1, 1, line3[1], val)
+    s.renderer.draw_string_2d(loc[0], loc[1]+45, 1, 1, line4[1], val)
+    #s.renderer.draw_string_2d(loc[0], loc[1]+60, 1, 1, line5[1], val)
+    #s.renderer.draw_string_2d(loc[0], loc[1]+75, 1, 1, line6[1], val)
 
     s.renderer.end_rendering()
 
@@ -104,17 +116,23 @@ def ctrl(s):
     line2   = ('boost: ',       str(s.ctrl.boost))
     line3   = ('steer: ',       str(s.ctrl.steer))
     line4   = ('handbrake: ',   str(s.ctrl.handbrake))
+    #line5   = ('label: ',       str(value))
+    #line6   = ('label: ',       str(value))
 
     loc     = [loc[0]+5,loc[1]+5]
     s.renderer.draw_string_2d(loc[0], loc[1]   , 1, 1, line1[0], label)
     s.renderer.draw_string_2d(loc[0], loc[1]+15, 1, 1, line2[0], label)
     s.renderer.draw_string_2d(loc[0], loc[1]+30, 1, 1, line3[0], label)
     s.renderer.draw_string_2d(loc[0], loc[1]+45, 1, 1, line4[0], label)
+    #s.renderer.draw_string_2d(loc[0], loc[1]+60, 1, 1, line5[0], label)
+    #s.renderer.draw_string_2d(loc[0], loc[1]+75, 1, 1, line6[0], label)
     loc     = [loc[0]+90*mw,loc[1]]
     s.renderer.draw_string_2d(loc[0], loc[1]   , 1, 1, line1[1], val)
     s.renderer.draw_string_2d(loc[0], loc[1]+15, 1, 1, line2[1], val)
     s.renderer.draw_string_2d(loc[0], loc[1]+30, 1, 1, line3[1], val)
     s.renderer.draw_string_2d(loc[0], loc[1]+45, 1, 1, line4[1], val)
+    #s.renderer.draw_string_2d(loc[0], loc[1]+60, 1, 1, line5[1], val)
+    #s.renderer.draw_string_2d(loc[0], loc[1]+75, 1, 1, line6[1], val)
 
     s.renderer.end_rendering()
 
@@ -140,4 +158,44 @@ def turn_circles(s,n):
     s.renderer.draw_polyline_3d(circleL, left)
 
     s.renderer.end_rendering()
-    
+
+def ball_predict(s):
+    """renders the predicted path of the ball"""
+    path = [a3v(pathslice.physics.location) for pathslice in s.ball.predict.slices[:-1]]
+
+    s.renderer.begin_rendering("ball prediction")
+
+    #colour
+    pathcol = s.renderer.white()
+
+    #rendering
+    s.renderer.draw_polyline_3d(path, pathcol)
+
+    s.renderer.end_rendering()
+
+
+def ball(s,n):
+    """renders three circles representing the ball"""
+    ball = s.ball.pos
+    r = 92.75
+    XY = a3l([[1,0,0],[0,1,0],[0,0,1]])
+    XZ = a3l([[0,0,1],[1,0,0],[0,1,0]])
+    YZ = a3l([[0,1,0],[0,0,1],[1,0,0]])
+
+    circleXY = gen_circle_points(r,ball,XY,n)
+    circleXZ = gen_circle_points(r,ball,XZ,n)
+    circleYZ = gen_circle_points(r,ball,YZ,n)
+
+    s.renderer.begin_rendering("ball")
+
+    #colours
+    XYcol   = s.renderer.blue()
+    XZcol   = s.renderer.lime()
+    YZcol   = s.renderer.red()
+
+    #rendering
+    s.renderer.draw_polyline_3d(circleXY, XYcol)
+    s.renderer.draw_polyline_3d(circleXZ, XZcol)
+    s.renderer.draw_polyline_3d(circleYZ, YZcol)
+
+    s.renderer.end_rendering()

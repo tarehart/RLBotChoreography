@@ -22,7 +22,8 @@ def init(s):
     s.dt            = 1 / 120.0
     s.last_time     = 0.0
 
-    s.calc_index = 0
+    s.calc_index    = 0
+    s.human         = False
 
 def process(s, p):
     """processes gametick packet"""
@@ -35,6 +36,12 @@ def process(s, p):
                 s.calc_index = i
                 break
             i += 1
+
+    #TEMPORARY
+    if s.calc_index == 0:
+        s.human = True
+    else:
+        s.human = False
 
     #player
     s.player.pos    = a3v(p.game_cars[s.index].physics.location)
@@ -51,6 +58,8 @@ def process(s, p):
     s.ball.vel      = a3v(p.game_ball.physics.velocity)
     s.ball.ang_vel  = a3v(p.game_ball.physics.angular_velocity)
     s.ball.last_t   = p.game_ball.latest_touch.player_name
+    s.ball.predict  = s.get_ball_prediction_struct()
+
 
     #teammates
     s.teammates = []
