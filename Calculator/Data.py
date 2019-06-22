@@ -36,13 +36,7 @@ def process(s, p):
                 s.calc_index = i
                 break
             i += 1
-
-    #TEMPORARY
-    if s.calc_index == 0:
-        s.human = True
-    else:
-        s.human = False
-
+            
     #player
     s.player.pos    = a3v(p.game_cars[s.index].physics.location)
     s.player.rot    = a3r(p.game_cars[s.index].physics.rotation)
