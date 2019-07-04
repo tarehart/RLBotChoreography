@@ -26,4 +26,5 @@ class Drone(BaseAgent):
 
     def get_output(self, packet: GameTickPacket) -> SimpleControllerState:
         data.process(self, packet)
+        self.ctrl.throttle = 1.0
         return self.ctrl
