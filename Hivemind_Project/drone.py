@@ -17,7 +17,8 @@ class Drone(BaseAgent):
     def get_helper_process_request(self) -> HelperProcessRequest:
         filepath = os.path.join(os.path.dirname(__file__), 'hivemind.py')
         key = 'my_hivemind'
-        request = HelperProcessRequest(filepath, key)
+        opts = {'port':1}
+        request = HelperProcessRequest(filepath, key, options=opts)
         return request
 
     def initialize_agent(self):
