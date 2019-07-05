@@ -13,16 +13,17 @@ import json
 class Hivemind(BotHelperProcess):
     def __init__(self, agent_metadata_queue, quit_event, options):
         super().__init__(agent_metadata_queue, quit_event, options)
-        self.logger = get_logger('hivemind')
+        self.logger = get_logger('Hivemind')
         self.game_interface = GameInterface(self.logger)
         self.running_indices = set()
+        self.current_sockets = set()
         self.port: int = options['port']
 
     async def data_exchange(self, websocket, path):
+        self.logger.info("Welcomed r0bbi3")
         async for message in websocket:
             controller_states = json.loads(message)
-
-            print("This ran!")
+            self.logger.info("Broke the meta")
             self.current_sockets.add(websocket)
 
     def try_receive_agent_metadata(self):
@@ -32,7 +33,7 @@ class Hivemind(BotHelperProcess):
         return
 
     def start(self):
-        self.logger.info("Awaking Hivemind")
+        self.logger.info("Hivemind A C T I V A T E D")
 
         self.game_interface.load_interface()
 
@@ -47,5 +48,4 @@ class Hivemind(BotHelperProcess):
 
     async def game_loop(self):
         while not self.quit_event.is_set():
-            websockets.serve(self.data_exchange, port=self.port)
             pass
