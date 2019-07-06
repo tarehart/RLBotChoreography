@@ -1,4 +1,4 @@
-'''Data processing.'''
+'''Rocket League data processing.'''
 
 from utils import *
 
@@ -27,6 +27,9 @@ def setup(s, indices, field_info):
         pad_obj = BoostPad(i, a3v(pad.location))
         pad_type.append(pad_obj)
 
+    # Other
+    s.strategy = None
+
 
 def process(s, p):
     """Processes the gametick packet.
@@ -36,16 +39,21 @@ def process(s, p):
         p {GameTickPacket} -- The game packet being processed.
     """
 
+    # Hivemind info
+    s.team = p.game_cars[s.drones[0].index].team
+
+
     # Processing drone data.
     for drone in s.drones:
-        drone.pos        = a3v(p.game_cars[drone.index].physics.location)
-        drone.rot        = a3r(p.game_cars[drone.index].physics.rotation)
-        drone.vel        = a3v(p.game_cars[drone.index].physics.velocity)
-        drone.ang_vel    = a3v(p.game_cars[drone.index].physics.angular_velocity)
-        drone.on_g       = p.game_cars[drone.index].has_wheel_contact
-        drone.sonic      = p.game_cars[drone.index].is_super_sonic
-        drone.orient_m   = orient_matrix(drone.rot)
-        drone.turn_r     = turn_r(drone.vel)
+        drone.pos       = a3v(p.game_cars[drone.index].physics.location)
+        drone.rot       = a3r(p.game_cars[drone.index].physics.rotation)
+        drone.vel       = a3v(p.game_cars[drone.index].physics.velocity)
+        drone.ang_vel   = a3v(p.game_cars[drone.index].physics.angular_velocity)
+        drone.on_g      = p.game_cars[drone.index].has_wheel_contact
+        drone.sonic     = p.game_cars[drone.index].is_super_sonic
+        drone.boost     = p.game_cars[drone.index].boost
+        drone.orient_m  = orient_matrix(drone.rot)
+        drone.turn_r    = turn_r(drone.vel)
 
     # Processing Ball data.
     s.ball.pos      = a3v(p.game_ball.physics.location)

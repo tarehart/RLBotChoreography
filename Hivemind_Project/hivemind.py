@@ -13,6 +13,7 @@ from rlbot.utils.structures.ball_prediction_struct import BallPrediction
 from rlbot.utils.structures.game_interface import GameInterface
 
 import data
+import brain
 
 class Hivemind(BotHelperProcess):
 
@@ -76,10 +77,13 @@ class Hivemind(BotHelperProcess):
             self.game_interface.update_ball_prediction(ball_predict)
             self.ball.predict = ball_predict
 
+            # Rendering Ball prediction.
             locations = [step.physics.location for step in ball_predict.slices]
             self.game_interface.renderer.begin_rendering()
             self.game_interface.renderer.draw_polyline_3d(locations, self.game_interface.renderer.pink())
             self.game_interface.renderer.end_rendering()
+
+            brain.strat_plan(self)
 
             # For each bot under the hivemind's control, do something.
             for index in self.running_indices:
@@ -89,6 +93,20 @@ class Hivemind(BotHelperProcess):
                 # TEST
                 ctrl.throttle = 1.0
                 ctrl.steer = (-1.0)**index
+
+                '''
+                {
+                throttle:float; /// -1 for full reverse, 1 for full forward
+                steer:float; /// -1 for full left, 1 for full right
+                pitch:float; /// -1 for nose down, 1 for nose up
+                yaw:float; /// -1 for full left, 1 for full right
+                roll:float; /// -1 for roll left, 1 for roll right
+                jump:bool; /// true if you want to press the jump button
+                boost:bool; /// true if you want to press the boost button
+                handbrake:bool; /// true if you want to press the handbrake button
+                use_item:bool; /// true if you want to use a rumble item
+                }
+                '''
 
                 # Send the controls to the bots.
                 self.game_interface.update_player_input(ctrl, index)

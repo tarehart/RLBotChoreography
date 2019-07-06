@@ -23,6 +23,7 @@ class Car:
         self.ang_vel    = np.zeros(3)
         self.on_g       = False
         self.sonic      = False
+        self.boost      = 0.0
         self.orient_m   = default_orient_m
         self.turn_r     = 0.0
 
@@ -46,6 +47,17 @@ class BoostPad:
 # -----------------------------------------------------------
 
 # FUNCTIONS:
+
+def sign(team):
+    """Gives the sign for a calculation based on team.
+    
+    Arguments:
+        team {int} -- 0 if Blue, 1 if Orange.
+    
+    Returns:
+        int -- 1 if Blue, -1 if Orange
+    """
+    return 1 if team == 0 else -1
 
 
 def a3l(L):
