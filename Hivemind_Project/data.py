@@ -3,32 +3,44 @@
 from utils import *
 
 
-def setup(s, indices, field_info):
+def setup(s, p, fi, indices):
     """Sets up the variables and classes for the hivemind.
     
     Arguments:
         s {BotHelperProcess (self)} -- The hivemind.
+        p {GameTickPacket} -- Information about the game
+        fi {FieldInfoPacket} -- Information about the game field.
         indices {set} -- Set containing the indices of each agent the hivemind controls.
-        field_info {FieldInfoPacket} -- Information about the game field.
     """
-    # Creates Car and Ball objects which house all the related data.
+    # Creates Drone objects.
     s.drones = []
     for index in indices:
-        s.drones.append(Car(index))
+        s.drones.append(Drone(index))
+
+    # Initialises hivemind attributes.
+    s.team = p.game_cars[s.drones[0].index].team
+    s.strategy = None
+
+    # Creates Car objects for teammates and opponents.
+    s.teammates = []
+    s.opponents = []
+    for index in range(p.num_cars):
+        if p.game_cars[index].team == s.team:
+            s.teammates.append(Car(index))
+        else:
+            s.opponents.append(Car(index))
     
+    # Creates a Ball object.
     s.ball = Ball()
 
-    # Creates Boostpad objects which house data related to boostpads.
+    # Creates Boostpad objects.
     s.l_pads = []
     s.s_pads = []
-    for i in range(field_info.num_boosts):
-        pad = field_info.boost_pads[i]
+    for i in range(fi.num_boosts):
+        pad = fi.boost_pads[i]
         pad_type = s.l_pads if pad.is_full_boost else s.s_pads
         pad_obj = BoostPad(i, a3v(pad.location))
         pad_type.append(pad_obj)
-
-    # Other
-    s.strategy = None
 
 
 def process(s, p):
@@ -38,10 +50,6 @@ def process(s, p):
         s {BotHelperProcess (self)} -- The agent who is processing the packet.
         p {GameTickPacket} -- The game packet being processed.
     """
-
-    # Hivemind info
-    s.team = p.game_cars[s.drones[0].index].team
-
 
     # Processing drone data.
     for drone in s.drones:
@@ -62,10 +70,8 @@ def process(s, p):
     s.ball.last_t   = p.game_ball.latest_touch.player_name
     
     # TODO Process teammates.
-    s.teammates = []
-
+    
     # TODO Process opponents.
-    s.opponents = []
 
     # Processing Boostpads.
     s.active_pads = []

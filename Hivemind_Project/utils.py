@@ -27,7 +27,6 @@ class Car:
         self.orient_m   = default_orient_m
         self.turn_r     = 0.0
 
-
 class Ball:
     def __init__(self):
         self.pos        = np.zeros(3)
@@ -36,13 +35,18 @@ class Ball:
         self.last_t     = ""
         self.predict    = None
 
-
 class BoostPad:
     def __init__(self, index, pos):
         self.index      = index
         self.pos        = pos
         self.active     = True
         self.timer      = 0.0
+
+class Drone(Car):
+    def __init__(self, index):
+        super().__init__(index)
+        self.role = None
+        self.pizzatime = True
 
 # -----------------------------------------------------------
 
@@ -203,7 +207,9 @@ def turn_r(v):
     s = np.linalg.norm(v)
     return -6.901E-11 * s**4 + 2.1815E-07 * s**3 - 5.4437E-06 * s**2 + 0.12496671 * s + 157
 
-
+# Bezier
+# Currently reconsidering.
+'''
 def bezier_quadratic(p0, p1, p2, t):
     """Returns a position on bezier curve defined by 3 points at t.
 
@@ -233,3 +239,7 @@ def bezier_cubic(p0, p1, p2, p3, t):
         np.array -- Numpy array containing the coordinates on the curve.
     """
     return (1-t)**3*p0 + 3*(1-t)**2*t*p1 + 3*(1-t)*t**2*p2 + t**3*p3
+'''
+
+# OGH curves (Optimised geometric hermite curves)
+# http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.104.1622&rep=rep1&type=pdf
