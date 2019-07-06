@@ -14,7 +14,6 @@ default_orient_m = np.array([
     [0, 0, 1]
 ])
 
-
 class Car:
     def __init__(self, index):
         self.index      = index
@@ -65,7 +64,7 @@ def a3r(R):
     """Converts rotator to numpy array.
 
     Arguments:
-        R {rotator} -- Rotator class containing pitch, yaw, and roll.
+        R {dict} -- Rotator class containing pitch, yaw, and roll.
 
     Returns:
         np.array -- Numpy array with the same contents as the rotator.
@@ -77,7 +76,7 @@ def a3v(V):
     """Converts vector3 to numpy array.
 
     Arguments:
-        V {vector3} -- Vector3 class containing x, y, and z.
+        V {dict} -- Vector3 class containing x, y, and z.
 
     Returns:
         np.array -- Numpy array with the same contents as the vector3.

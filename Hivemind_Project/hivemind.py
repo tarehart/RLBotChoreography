@@ -8,8 +8,11 @@ from rlbot.botmanager.bot_helper_process import BotHelperProcess
 from rlbot.utils import rate_limiter
 from rlbot.utils.logging_utils import get_logger
 from rlbot.utils.structures.bot_input_struct import PlayerInput
-from rlbot.utils.structures.game_data_struct import GameTickPacket
+from rlbot.utils.structures.game_data_struct import GameTickPacket, FieldInfoPacket
+from rlbot.utils.structures.ball_prediction_struct import BallPrediction
 from rlbot.utils.structures.game_interface import GameInterface
+
+import data
 
 class Hivemind(BotHelperProcess):
 
@@ -31,37 +34,64 @@ class Hivemind(BotHelperProcess):
 
 
     def start(self):
+        """Runs once, sets up the hivemind and its bots."""
+        # Prints stuff into the console.
         self.logger.info("Hivemind A C T I V A T E D")
         self.logger.info("Breaking the meta")
         self.logger.info("Welcoming r0bbi3")
         
+        # Loads game interface.
         self.game_interface.load_interface()
 
-        # Wait a moment for all agents to have a chance to start up and send metadata
+        # Wait a moment for all agents to have a chance to start up and send metadata.
         time.sleep(1)
         self.try_receive_agent_metadata()
-
+        
+        # Runs the game loop where the hivemind will spend the rest of its time.
         self.game_loop()
 
             
     def game_loop(self):
+        """The main game loop. This is where your hivemind code goes."""
+
+        # Setting up rate limiter.
         rate_limit = rate_limiter.RateLimiter(120)
+
+        # Setting up data.
+        field_info = FieldInfoPacket()
+        self.game_interface.update_field_info_packet(field_info)
+        data.setup(self, self.running_indices, field_info)
+
+        # The loop.
         while True:
+            # Updating the game packet from the game.
             packet = GameTickPacket()
             self.game_interface.update_live_data_packet(packet)
+    
+            # Processing packet.
+            data.process(self, packet)
 
+            # Ball prediction.
+            ball_predict = BallPrediction()
+            self.game_interface.update_ball_prediction(ball_predict)
+            self.ball.predict = ball_predict
+
+            locations = [step.physics.location for step in ball_predict.slices]
+            self.game_interface.renderer.begin_rendering()
+            self.game_interface.renderer.draw_polyline_3d(locations, self.game_interface.renderer.pink())
+            self.game_interface.renderer.end_rendering()
+
+            # For each bot under the hivemind's control, do something.
             for index in self.running_indices:
 
-                player_input = PlayerInput()
-                player_input.throttle = 1.0
+                ctrl = PlayerInput() # Basically the same as SimpleControllerState().
 
-                if index == 0:
-                    player_input.steer = 1.0
-                elif index == 1:
-                    player_input.steer = -1.0
-                else:
-                    player_input.steer = 0.0
-                    
-                self.game_interface.update_player_input(player_input, index)
+                # TEST
+                ctrl.throttle = 1.0
+                ctrl.steer = (-1.0)**index
 
+                # Send the controls to the bots.
+                self.game_interface.update_player_input(ctrl, index)
+
+            # Rate limit sleep.
             rate_limit.acquire()

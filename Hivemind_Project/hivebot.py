@@ -1,17 +1,10 @@
-'''Main bot file.'''
+'''Main bot file, just starts the hivemind helper process.'''
 
-# RLBot imports
+import os
+
 from rlbot.agents.base_independent_agent import BaseIndependentAgent
 from rlbot.botmanager.helper_process_request import HelperProcessRequest
 
-# Other imports
-import os
-from multiprocessing import Queue
-
-# File imports
-import data
-
-# Agent class
 class HiveBot(BaseIndependentAgent):
 
     def __init__(self, name, team, index):
@@ -20,6 +13,7 @@ class HiveBot(BaseIndependentAgent):
     def get_helper_process_request(self) -> HelperProcessRequest:
 
         filepath = os.path.join(os.path.dirname(__file__), 'hivemind.py')
+        # Differentiates between teams so each team has its own hivemind.
         key = 'Blue Hivemind' if self.team == 0 else 'Orange Hivemind'
         options = {}
         request = HelperProcessRequest(filepath, key, options=options)
