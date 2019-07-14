@@ -80,7 +80,7 @@ class Hivemind(BotHelperProcess):
             self.game_interface.update_ball_prediction(self.ball.predict)
 
             # Rendering Ball prediction.
-            locations = [step.physics.location for step in ball_predict.slices]
+            locations = [step.physics.location for step in self.ball_predict.slices]
             self.game_interface.renderer.begin_rendering()
             self.game_interface.renderer.draw_polyline_3d(locations, self.game_interface.renderer.pink())
             self.game_interface.renderer.end_rendering()
