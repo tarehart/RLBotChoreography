@@ -1,4 +1,4 @@
-'''Bot helper process.'''
+'''The Hivemind - Bot helper process.'''
 
 import queue
 import time
@@ -14,6 +14,8 @@ from rlbot.utils.structures.game_interface import GameInterface
 
 import data
 import brain
+import numpy as np
+from utils import a3l, world, local
 
 class Hivemind(BotHelperProcess):
 
@@ -35,7 +37,7 @@ class Hivemind(BotHelperProcess):
 
 
     def start(self):
-        """Runs once, sets up the hivemind and its bots."""
+        """Runs once, sets up the hivemind and its agents."""
         # Prints stuff into the console.
         self.logger.info("Hivemind A C T I V A T E D")
         self.logger.info("Breaking the meta")
@@ -80,8 +82,8 @@ class Hivemind(BotHelperProcess):
             self.game_interface.update_ball_prediction(self.ball.predict)
 
             # Rendering Ball prediction.
-            locations = [step.physics.location for step in self.ball_predict.slices]
-            self.game_interface.renderer.begin_rendering()
+            locations = [step.physics.location for step in self.ball.predict.slices]
+            self.game_interface.renderer.begin_rendering('ball prediction')
             self.game_interface.renderer.draw_polyline_3d(locations, self.game_interface.renderer.pink())
             self.game_interface.renderer.end_rendering()
 
@@ -111,6 +113,27 @@ class Hivemind(BotHelperProcess):
                     if drone.pizzatime:
                         ctrl.throttle = 1.0
                         ctrl.steer = (-1.0)**index
+
+                        # Rendering turn circles.
+                        r = drone.turn_r
+                        A = drone.orient_m
+
+                        centre = world(A, drone.pos, a3l([0,r,0]))
+                        points = np.zeros((11,3))
+                        theta  = np.linspace(0, 2*np.pi, 11)
+                        points[:,0] += r*np.cos(theta)
+                        points[:,1] += r*np.sin(theta)
+                        points = np.dot(points, A)
+                        points += centre
+
+                        self.game_interface.renderer.begin_rendering("turn circles" + str(drone.index))
+                        self.game_interface.renderer.draw_polyline_3d(points, self.game_interface.renderer.red())
+                        self.game_interface.renderer.end_rendering()
+
+                        #test = np.array([10,11,-12])
+                        #print("l(w(x))",local(world(test, A), A) == test)
+                        #print("w(l(x))",world(local(test, A), A) == test)
+                        print(self.opponents[0].orient_m)
 
                 # Send the controls to the bots.
                 self.game_interface.update_player_input(ctrl, index)

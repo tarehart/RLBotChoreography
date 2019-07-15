@@ -1,7 +1,6 @@
 '''Utilities (fuctions and classes) for Rocket League.'''
 
 import numpy as np
-from math import sin, cos
 from scipy.interpolate import interp1d
 
 # -----------------------------------------------------------
@@ -32,7 +31,6 @@ class Ball:
         self.pos        = np.zeros(3)
         self.vel        = np.zeros(3)
         self.ang_vel    = np.zeros(3)
-        self.last_t     = ""
         self.predict    = None
 
 class BoostPad:
@@ -45,14 +43,15 @@ class BoostPad:
 class Drone(Car):
     def __init__(self, index):
         super().__init__(index)
-        self.role = None
-        self.pizzatime = True
+        self.role       = None
+        self.action     = None
+        self.pizzatime  = True
 
 # -----------------------------------------------------------
 
 # FUNCTIONS:
 
-def sign(team):
+def team_sign(team : int):
     """Gives the sign for a calculation based on team.
     
     Arguments:
@@ -64,7 +63,7 @@ def sign(team):
     return 1 if team == 0 else -1
 
 
-def a3l(L):
+def a3l(L : list):
     """Converts list to numpy array.
 
     Arguments:
@@ -109,68 +108,72 @@ def orient_matrix(R):
     Returns:
         np.array -- Orientation matrix of shape (3, 3).
     """
-    pitch   = R[0]
-    yaw     = R[1]
-    roll    = R[2]
+    # Credits to chip https://samuelpmish.github.io/notes/RocketLeague/aerial_control/
+    pitch : float = R[0]
+    yaw   : float = R[1]
+    roll  : float = R[2]
 
-    CR = cos(roll)
-    SR = sin(roll)
-    CP = cos(pitch)
-    SP = sin(pitch)
-    CY = cos(yaw)
-    SY = sin(yaw)
+    CR : float = np.cos(roll)
+    SR : float = np.sin(roll)
+    CP : float = np.cos(pitch)
+    SP : float = np.sin(pitch)
+    CY : float = np.cos(yaw)
+    SY : float = np.sin(yaw)
 
     A = np.zeros((3, 3))
 
     # front direction
     A[0][0] = CP * CY
-    A[0][1] = CP * SY
-    A[0][2] = SP
+    A[1][0] = CP * SY
+    A[2][0] = SP
 
-    # right direction
-    A[1][0] = CY * SP * SR - CR * SY
+    # right direction ??
+    A[0][1] = CY * SP * SR - CR * SY
     A[1][1] = SY * SP * SR + CR * CY
-    A[1][2] = -CP * SR
+    A[2][1] = -CP * SR
 
     # up direction
-    A[2][0] = -CR * CY * SP - SR * SY
-    A[2][1] = -CR * SY * SP + SR * CY
+    A[0][2] = -CR * CY * SP - SR * SY
+    A[1][2] = -CR * SY * SP + SR * CY
     A[2][2] = CP * CR
 
     return A
 
 
-def local(V, A):
+def local(A, p0, p1):
     """Transforms world coordinates into local coordinates.
-
+    
     Arguments:
-        V {np.array} -- Numpy array containing world x, y, and z coordinates.
-        A {np.array} -- Numpy array containing the local orientation matrix.
-
+        A {np.array} -- The local orientation matrix.
+        p0 {np.array} -- World x, y, and z coordinates of the start point for the vector.
+        p1 {np.array} -- World x, y, and z coordinates of the end point for the vector.
+    
     Returns:
-        np.array -- Numpy array of local x, y, and z.
+        np.array -- Local x, y, and z coordinates.
     """
-    return np.dot(A, V)
+    return np.dot(A, p1 - p0)
 
 
-def world(V, A):
+def world(A, p0, p1):
     """Transforms local into world coordinates.
-
+    
     Arguments:
-        V {np.array} -- Numpy array containing local x, y, and z coordinates.
-        A {np.array} -- Numpy array containing the local orientation matrix.
-
+        A {np.array} -- The local orientation matrix.
+        p0 {np.array} -- World x, y, and z coordinates of the start point for the vector.
+        p1 {np.array} -- Local x, y, and z coordinates of the end point for the vector.
+    
     Returns:
-        np.array -- Numpy array of world x, y, and z.
+        np.array -- World x, y, and z coordinates.
     """
-    return np.dot(V, A)
+    return p0 + np.dot(p1, A.T)
+    #TODO Fix this
 
 
-def get_steer(v, r):
+def get_steer(v, r : float):
     """Aproximated steer for a desired radius of turn and known velocity.
 
     Arguments:
-        v {np.array} -- Numpy array containing a velocity vector.
+        v {np.array} -- A velocity vector.
         r {float} -- The desired radius of turn.
 
     Returns:
@@ -199,7 +202,7 @@ def turn_r(v):
     """Calculates the minimum turning radius for given velocity.
 
     Arguments:
-        v {np.array} -- Numpy array containing a velocity vector.
+        v {np.array} -- A velocity vector.
 
     Returns:
         float -- The smallest radius possible for the given velocity.
@@ -207,39 +210,38 @@ def turn_r(v):
     s = np.linalg.norm(v)
     return -6.901E-11 * s**4 + 2.1815E-07 * s**3 - 5.4437E-06 * s**2 + 0.12496671 * s + 157
 
-# Bezier
-# Currently reconsidering.
-'''
-def bezier_quadratic(p0, p1, p2, t):
+
+def bezier_quadratic(p0, p1, p2, n : int):
     """Returns a position on bezier curve defined by 3 points at t.
 
     Arguments:
-        p0 {np.array} -- Numpy array containg coordinates of point 0.
-        p1 {np.array} -- Numpy array containg coordinates of point 1.
-        p2 {np.array} -- Numpy array containg coordinates of point 2.
-        t {float} -- A number between 0 and 1. 0 is the start of the curve, 1 is the end.
+        p0 {np.array} -- Coordinates of point 0.
+        p1 {np.array} -- Coordinates of point 1.
+        p2 {np.array} -- Coordinates of point 2.
+        n {int} -- Number of points on the curve to generate.
 
     Returns:
-        np.array -- Numpy array containing the coordinates on the curve.
+        np.array -- Coordinates on the curve.
     """
+    t = np.linspace(0.0, 1.0, n)
     return p1 + (1-t)**2*(p0-p1) + t**2*(p2-p1)
 
 
-def bezier_cubic(p0, p1, p2, p3, t):
-    """Returns a position on bezier curve defined by 4 points at t.
+def bezier_cubic(p0, p1, p2, p3, n : int):
+    """Returns a position on bezier curve defined by 3 points at t.
 
     Arguments:
-        p0 {np.array} -- Numpy array containg coordinates of point 0.
-        p1 {np.array} -- Numpy array containg coordinates of point 1.
-        p2 {np.array} -- Numpy array containg coordinates of point 2.
-        p4 {np.array} -- Numpy array containg coordinates of point 3.
-        t {float} -- A number between 0 and 1. 0 is the start of the curve, 1 is the end.
+        p0 {np.array} -- Coordinates of point 0.
+        p1 {np.array} -- Coordinates of point 1.
+        p2 {np.array} -- Coordinates of point 2.
+        p3 {np.array} -- Coordinates of point 3.
+        n {int} -- Number of points on the curve to generate.
 
     Returns:
-        np.array -- Numpy array containing the coordinates on the curve.
+        np.array -- Coordinates on the curve.
     """
+    t = np.linspace(0.0, 1.0, n)
     return (1-t)**3*p0 + 3*(1-t)**2*t*p1 + 3*(1-t)*t**2*p2 + t**3*p3
-'''
 
-# OGH curves (Optimised geometric hermite curves)
+# TODO COH curves (Composite optimised geometric hermite curves)
 # http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.104.1622&rep=rep1&type=pdf

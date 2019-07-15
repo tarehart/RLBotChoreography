@@ -1,6 +1,8 @@
 '''For thinking and planning.'''
 
-from utils import *
+import numpy as np
+from utils import a3l, team_sign
+from actions import Behaviour, Action
 
 # Big picture strategy.
 class Strategy:
@@ -34,22 +36,38 @@ def plan(s):
     """
 
     if s.strategy == Strategy.KICKOFF:
+
+        for drone in s.drones:
+            if drone.role == Role.FORWARD:
+                # Take the kickoff.
+                drone.action = Behaviour.FASTBA
+                pass
+
+            elif drone.role == Role.DEFENDER:
+                # Go grab boost and prepare to follow up.
+                pass
+
+            elif drone.role == Role.GOALIE:
+                # Go to goal and watch out for shots.
+                pass
         
         # End this strategy if ball has moved and the kickoff pause has ended.
         if not s.ko_pause and np.any(s.ball.pos[:2] != np.array([0,0])):
-            print("Oh no.")
+            s.logger.info("KICKOFF END")
             s.strategy = None
 
     elif s.strategy == Strategy.DEFENCE:
 
         # End this strategy if ball goes on their side.
-        if s.ball.pos[1]*sign(s.team) > 0 or s.ko_pause:
+        if s.ball.pos[1]*team_sign(s.team) > 0 or s.ko_pause:
+            s.logger.info("DEFENCE END")
             s.strategy = None
 
     elif s.strategy == Strategy.OFFENCE:
 
         # End this strategy if ball goes on our side.
-        if s.ball.pos[1]*sign(s.team) < 0 or s.ko_pause:
+        if s.ball.pos[1]*team_sign(s.team) < 0 or s.ko_pause:
+            s.logger.info("OFFENCE END")
             s.strategy = None
 
 
@@ -60,15 +78,16 @@ def plan(s):
 
         # KICKOFF: At start of kickoff.
         if s.r_active and s.ko_pause:
-            s.logger.info("KICKOFF")
+            s.logger.info("KICKOFF START")
             s.strategy = Strategy.KICKOFF
 
+            # Finds drones' kickoff positions.
             for drone in s.drones:
                 drone.kickoff = 'r_corner'
                 print("index: {}".format(drone.index))
                 for ko_pos in ko_positions:
-                    dist_to_old_ko = abs(np.sum(drone.pos - ko_positions[drone.kickoff]*sign(s.team)))
-                    dist_to_new_ko = abs(np.sum(drone.pos - ko_positions[ko_pos]*sign(s.team)))
+                    dist_to_old_ko = abs(np.sum(drone.pos - ko_positions[drone.kickoff]*team_sign(s.team)))
+                    dist_to_new_ko = abs(np.sum(drone.pos - ko_positions[ko_pos]*team_sign(s.team)))
                     if dist_to_new_ko < dist_to_old_ko:
                         drone.kickoff = ko_pos
 
@@ -76,30 +95,37 @@ def plan(s):
 
                 # Assigns a role to each bot for the kickoff.
                 if drone.kickoff == 'r_corner' or drone.kickoff == 'l_corner':
+                    # Take the kickoff if no one is taking yet, otherwise play as defender.
                     if not any(d.role == Role.FORWARD for d in s.drones):
                         drone.role = Role.FORWARD
                     else:
                         drone.role = Role.DEFENDER
+
                 elif drone.kickoff == 'r_back' or drone.kickoff == 'l_back':
+                    # Take the kickoff if no one is taking yet, otherwise play as goalie if no goalie yet, otherwise defend.
                     if not any(d.role == Role.FORWARD for d in s.drones):
                         drone.role = Role.FORWARD
                     elif not any(d.role == Role.GOALIE for d in s.drones):
                         drone.role = Role.GOALIE
                     else:
                         drone.role = Role.DEFENDER
+
                 else: #kickoff == 'centre'
+                    # Take the kickoff if no one else is taking yet, otherwise play as goalie. (Should only take kickoffs in 1v1.)
                     if not any(d.role == Role.FORWARD for d in s.drones):
                         drone.role = Role.FORWARD
                     else:
                         drone.role = Role.GOALIE
             
         
+        #TODO Find better definitions for OFFENCE and DEFENCE
+
         # DEFENCE: When the ball is on our half.
-        elif s.ball.pos[1]*sign(s.team) < 0:
-            s.logger.info("DEFENCE")
+        elif s.ball.pos[1]*team_sign(s.team) < 0:
+            s.logger.info("DEFENCE START")
             s.strategy = Strategy.DEFENCE
 
         # OFFENCE: When the ball in on their half.
-        elif s.ball.pos[1]*sign(s.team) > 0:
-            s.logger.info("OFFENCE")
+        elif s.ball.pos[1]*team_sign(s.team) > 0:
+            s.logger.info("OFFENCE START")
             s.strategy = Strategy.OFFENCE

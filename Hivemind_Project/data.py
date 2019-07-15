@@ -1,14 +1,14 @@
 '''Rocket League data processing.'''
 
-from utils import *
+from utils import Car, Ball, BoostPad, Drone, a3l, a3r, a3v, orient_matrix, turn_r
 
 
 def setup(s, p, fi, indices):
     """Sets up the variables and classes for the hivemind.
     
     Arguments:
-        s {BotHelperProcess (self)} -- The hivemind.
-        p {GameTickPacket} -- Information about the game
+        s {BotHelperProcess (self)} -- The hivemind bot helper process.
+        p {GameTickPacket} -- Information about the game.
         fi {FieldInfoPacket} -- Information about the game field.
         indices {set} -- Set containing the indices of each agent the hivemind controls.
     """
@@ -25,7 +25,7 @@ def setup(s, p, fi, indices):
     s.teammates = []
     s.opponents = []
     for index in range(p.num_cars):
-        if p.game_cars[index].team == s.team:
+        if p.game_cars[index].team == s.team and index not in indices:
             s.teammates.append(Car(index))
         else:
             s.opponents.append(Car(index))
@@ -42,12 +42,16 @@ def setup(s, p, fi, indices):
         pad_obj = BoostPad(i, a3v(pad.location))
         pad_type.append(pad_obj)
 
+    # Game info.
+    s.dt            = 1 / 120.0
+    s.last_time     = 0.0
+
 
 def process(s, p):
     """Processes the gametick packet.
 
     Arguments:
-        s {BotHelperProcess (self)} -- The agent who is processing the packet.
+        s {BotHelperProcess (self)} -- The process which is processing the packet.
         p {GameTickPacket} -- The game packet being processed.
     """
 
@@ -62,16 +66,36 @@ def process(s, p):
         drone.boost     = p.game_cars[drone.index].boost
         drone.orient_m  = orient_matrix(drone.rot)
         drone.turn_r    = turn_r(drone.vel)
+    
+    # Processing teammates.
+    for teammate in s.teammates:
+        teammate.pos        = a3v(p.game_cars[teammate.index].physics.location)
+        teammate.rot        = a3r(p.game_cars[teammate.index].physics.rotation)
+        teammate.vel        = a3v(p.game_cars[teammate.index].physics.velocity)
+        teammate.ang_vel    = a3v(p.game_cars[teammate.index].physics.angular_velocity)
+        teammate.on_g       = p.game_cars[teammate.index].has_wheel_contact
+        teammate.sonic      = p.game_cars[teammate.index].is_super_sonic
+        teammate.boost      = p.game_cars[teammate.index].boost
+        teammate.orient_m   = orient_matrix(teammate.rot)
+        teammate.turn_r     = turn_r(teammate.vel)
+
+    # Processing opponents.
+    for opponent in s.opponents:
+        opponent.pos        = a3v(p.game_cars[opponent.index].physics.location)
+        opponent.rot        = a3r(p.game_cars[opponent.index].physics.rotation)
+        opponent.vel        = a3v(p.game_cars[opponent.index].physics.velocity)
+        opponent.ang_vel    = a3v(p.game_cars[opponent.index].physics.angular_velocity)
+        opponent.on_g       = p.game_cars[opponent.index].has_wheel_contact
+        opponent.sonic      = p.game_cars[opponent.index].is_super_sonic
+        opponent.boost      = p.game_cars[opponent.index].boost
+        opponent.orient_m   = orient_matrix(opponent.rot)
+        opponent.turn_r     = turn_r(opponent.vel)
 
     # Processing Ball data.
     s.ball.pos      = a3v(p.game_ball.physics.location)
     s.ball.vel      = a3v(p.game_ball.physics.velocity)
     s.ball.ang_vel  = a3v(p.game_ball.physics.angular_velocity)
-    s.ball.last_t   = p.game_ball.latest_touch.player_name
-    
-    # TODO Process teammates.
-    
-    # TODO Process opponents.
+    # Ball prediction is being updated in the main file, i.e. hivemind.py.
 
     # Processing Boostpads.
     s.active_pads = []
@@ -84,6 +108,8 @@ def process(s, p):
 
     # Processing other game info.
     s.time      = p.game_info.seconds_elapsed
+    s.dt        = s.time - s.last_time
+    s.last_time = s.time
     s.r_active  = p.game_info.is_round_active
     s.ko_pause  = p.game_info.is_kickoff_pause
     s.m_ended   = p.game_info.is_match_ended
