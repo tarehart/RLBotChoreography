@@ -25,10 +25,11 @@ def setup(s, p, fi, indices):
     s.teammates = []
     s.opponents = []
     for index in range(p.num_cars):
-        if p.game_cars[index].team == s.team and index not in indices:
-            s.teammates.append(Car(index))
-        else:
-            s.opponents.append(Car(index))
+        if index not in indices:
+            if p.game_cars[index].team == s.team:
+                s.teammates.append(Car(index))
+            else:
+                s.opponents.append(Car(index))
     
     # Creates a Ball object.
     s.ball = Ball()

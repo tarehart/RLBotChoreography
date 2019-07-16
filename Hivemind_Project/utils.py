@@ -44,8 +44,10 @@ class Drone(Car):
     def __init__(self, index):
         super().__init__(index)
         self.role       = None
+        self.behaviour  = None
         self.action     = None
-        self.pizzatime  = True
+        self.target     = None
+        self.pizzatime  = False
 
 # -----------------------------------------------------------
 
@@ -103,7 +105,7 @@ def orient_matrix(R):
     """Converts from Euler angles to an orientation matrix.
 
     Arguments:
-        R {np.array} -- np.array containg pitch, yaw, and roll.
+        R {np.array} -- Pitch, yaw, and roll.
 
     Returns:
         np.array -- Orientation matrix of shape (3, 3).
@@ -127,7 +129,7 @@ def orient_matrix(R):
     A[1][0] = CP * SY
     A[2][0] = SP
 
-    # right direction ??
+    # right direction (should be left but for some reason it is weird)
     A[0][1] = CY * SP * SR - CR * SY
     A[1][1] = SY * SP * SR + CR * CY
     A[2][1] = -CP * SR
@@ -151,7 +153,7 @@ def local(A, p0, p1):
     Returns:
         np.array -- Local x, y, and z coordinates.
     """
-    return np.dot(A, p1 - p0)
+    return np.dot(A.T, p1 - p0)
 
 
 def world(A, p0, p1):
@@ -165,8 +167,7 @@ def world(A, p0, p1):
     Returns:
         np.array -- World x, y, and z coordinates.
     """
-    return p0 + np.dot(p1, A.T)
-    #TODO Fix this
+    return p0 + np.dot(A, p1)
 
 
 def get_steer(v, r : float):

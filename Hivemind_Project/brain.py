@@ -1,4 +1,4 @@
-'''For thinking and planning.'''
+'''For handling strategy and planning.'''
 
 import numpy as np
 from utils import a3l, team_sign
@@ -40,11 +40,12 @@ def plan(s):
         for drone in s.drones:
             if drone.role == Role.FORWARD:
                 # Take the kickoff.
-                drone.action = Behaviour.FASTBA
-                pass
+                drone.behaviour = Behaviour.FAST_TO_TARGET
+                drone.target = s.ball.pos
 
             elif drone.role == Role.DEFENDER:
                 # Go grab boost and prepare to follow up.
+                drone.action = Behaviour.COLLECT_BOOST
                 pass
 
             elif drone.role == Role.GOALIE:

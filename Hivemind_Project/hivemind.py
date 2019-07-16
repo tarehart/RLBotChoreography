@@ -14,6 +14,7 @@ from rlbot.utils.structures.game_interface import GameInterface
 
 import data
 import brain
+import actions
 import numpy as np
 from utils import a3l, world, local
 
@@ -91,9 +92,9 @@ class Hivemind(BotHelperProcess):
             brain.plan(self)
 
             # For each drone under the hivemind's control, do something.
-            for index in self.running_indices:
+            for drone in self.drones:
 
-                ctrl = PlayerInput() # Basically the same as SimpleControllerState().
+                drone.ctrl = PlayerInput() # Basically the same as SimpleControllerState().
                 '''
                 {
                 throttle:   float; /// -1 for full reverse, 1 for full forward
@@ -108,35 +109,44 @@ class Hivemind(BotHelperProcess):
                 }
                 '''
 
-                # TEST
-                for drone in self.drones:
-                    if drone.pizzatime:
-                        ctrl.throttle = 1.0
-                        ctrl.steer = (-1.0)**index
+                # Pizzatime is a debug mode. Don't ask me why I called it that. I must have been hungry or something.
+                drone.pizzatime = True
+                if drone.pizzatime:
+                    # Turning in circles.
+                    drone.ctrl.throttle = 1
+                    drone.ctrl.steer = 1
 
-                        # Rendering turn circles.
-                        r = drone.turn_r
-                        A = drone.orient_m
+                    # Rendering turn circles.
+                    r = drone.turn_r
+                    A = drone.orient_m
 
-                        centre = world(A, drone.pos, a3l([0,r,0]))
-                        points = np.zeros((11,3))
-                        theta  = np.linspace(0, 2*np.pi, 11)
-                        points[:,0] += r*np.cos(theta)
-                        points[:,1] += r*np.sin(theta)
-                        points = np.dot(points, A)
-                        points += centre
+                    detail = 12
+                    centre = world(A, drone.pos, a3l([0,r,0]))
+                    points = np.zeros((detail,3))
+                    theta  = np.linspace(0, 2*np.pi, detail)
+                    points[:,0] += r*np.cos(theta)
+                    points[:,1] += r*np.sin(theta)
+                    points = np.dot(points, A)
+                    points += centre
 
-                        self.game_interface.renderer.begin_rendering("turn circles" + str(drone.index))
-                        self.game_interface.renderer.draw_polyline_3d(points, self.game_interface.renderer.red())
-                        self.game_interface.renderer.end_rendering()
+                    self.game_interface.renderer.begin_rendering("turn circles" + str(drone.index))
+                    self.game_interface.renderer.draw_polyline_3d(points, self.game_interface.renderer.red())
+                    self.game_interface.renderer.end_rendering()
 
-                        #test = np.array([10,11,-12])
-                        #print("l(w(x))",local(world(test, A), A) == test)
-                        #print("w(l(x))",world(local(test, A), A) == test)
-                        print(self.opponents[0].orient_m)
+                    # Test prints into console.
+                    # print("drone index:", drone.index)
+                    opp = self.opponents[0]
+                    
+                    # Testing reversibility of world and local functions
+                    print(local(opp.orient_m, opp.pos, self.ball.pos))
+
+                # Actual agent control.
+                else:
+                    drone.ctrl = actions.run(self, drone)
+                        
 
                 # Send the controls to the bots.
-                self.game_interface.update_player_input(ctrl, index)
+                self.game_interface.update_player_input(drone.ctrl, drone.index)
 
             # Rate limit sleep.
             rate_limit.acquire()
