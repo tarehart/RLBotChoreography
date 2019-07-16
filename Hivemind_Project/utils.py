@@ -47,6 +47,7 @@ class Drone(Car):
         self.behaviour  = None
         self.action     = None
         self.target     = None
+        self.target     = 0.0
         self.pizzatime  = False
 
 # -----------------------------------------------------------

@@ -2,22 +2,67 @@
 
 import numpy as np
 from utils import a3l, team_sign
-from actions import Behaviour, Action
 
-# Big picture strategy.
+from control import AB_control
+
+# -----------------------------------------------------------
+
+# STRATEGIES:
+
 class Strategy:
     KICKOFF = 0
     DEFENCE = 1
     OFFENCE = 2
 
-# Roles for specific drones. Will do different things depending on strategy.
-class Role:
-    ATBA = 0
-    DEMO = 1
-    FORWARD = 2
-    MIDFIELD = 3
-    DEFENDER = 4
-    GOALIE = 5
+# TODO Think of better strategies; some fun ideas below:
+# Idea: One drone carries ball, others try to demo opponent goalies.
+# Idea: All drones turtle in goal except one who attacks the ball.
+# Idea: Play as one large car in formation.
+# Idea: Bots on each wing, passing from side to side.
+
+# -----------------------------------------------------------
+
+# ROLES:
+
+class Demo():
+    def __init__(self):
+        self.name = "Demo"
+
+    @staticmethod
+    def execute(s, drone):
+        pass
+
+class Attacker():
+    def __init__(self):
+        self.name = "Attacker"
+    
+    @staticmethod
+    def execute(s, drone):
+        if s.strategy == Strategy.KICKOFF:
+            AB_control(drone, s.ball.pos)
+
+        else: #for testing
+            AB_control(drone, s.ball.pos)
+
+class Defender():
+    def __init__(self):
+        self.name = "Defender"
+
+    @staticmethod
+    def execute(s, drone):
+        pass
+
+class Goalie():
+    def __init__(self):
+        self.name = "Goalie"
+
+    @staticmethod
+    def execute(s, drone):
+        pass
+
+# -----------------------------------------------------------
+
+# PLANNING:
 
 # Possible kickoff positions.
 ko_positions = {
@@ -29,29 +74,14 @@ ko_positions = {
 }
 
 def plan(s):
-    """Decides on strategy for the hivemind and assigns drones to tasks.
+    """Decides on strategy for the hivemind and assigns drones to roles.
     
     Arguments:
         s {BotHelperProcess (self)} -- The hivemind.
     """
 
-    if s.strategy == Strategy.KICKOFF:
+    if s.strategy == Strategy.KICKOFF:    
 
-        for drone in s.drones:
-            if drone.role == Role.FORWARD:
-                # Take the kickoff.
-                drone.behaviour = Behaviour.FAST_TO_TARGET
-                drone.target = s.ball.pos
-
-            elif drone.role == Role.DEFENDER:
-                # Go grab boost and prepare to follow up.
-                drone.action = Behaviour.COLLECT_BOOST
-                pass
-
-            elif drone.role == Role.GOALIE:
-                # Go to goal and watch out for shots.
-                pass
-        
         # End this strategy if ball has moved and the kickoff pause has ended.
         if not s.ko_pause and np.any(s.ball.pos[:2] != np.array([0,0])):
             s.logger.info("KICKOFF END")
@@ -72,11 +102,8 @@ def plan(s):
             s.strategy = None
 
 
-
-
     # Pick a strategy
     else:
-
         # KICKOFF: At start of kickoff.
         if s.r_active and s.ko_pause:
             s.logger.info("KICKOFF START")
@@ -84,6 +111,8 @@ def plan(s):
 
             # Finds drones' kickoff positions.
             for drone in s.drones:
+                drone.role = None
+
                 drone.kickoff = 'r_corner'
                 print("index: {}".format(drone.index))
                 for ko_pos in ko_positions:
@@ -97,26 +126,26 @@ def plan(s):
                 # Assigns a role to each bot for the kickoff.
                 if drone.kickoff == 'r_corner' or drone.kickoff == 'l_corner':
                     # Take the kickoff if no one is taking yet, otherwise play as defender.
-                    if not any(d.role == Role.FORWARD for d in s.drones):
-                        drone.role = Role.FORWARD
+                    if not any(isinstance(d.role, Attacker) for d in s.drones):
+                        drone.role = Attacker()
                     else:
-                        drone.role = Role.DEFENDER
+                        drone.role = Defender()
 
                 elif drone.kickoff == 'r_back' or drone.kickoff == 'l_back':
                     # Take the kickoff if no one is taking yet, otherwise play as goalie if no goalie yet, otherwise defend.
-                    if not any(d.role == Role.FORWARD for d in s.drones):
-                        drone.role = Role.FORWARD
-                    elif not any(d.role == Role.GOALIE for d in s.drones):
-                        drone.role = Role.GOALIE
+                    if not any(isinstance(d.role, Attacker) for d in s.drones):
+                        drone.role = Attacker()
+                    elif not any(isinstance(d.role, Goalie) for d in s.drones):
+                        drone.role = Goalie()
                     else:
-                        drone.role = Role.DEFENDER
+                        drone.role = Defender()
 
                 else: #kickoff == 'centre'
                     # Take the kickoff if no one else is taking yet, otherwise play as goalie. (Should only take kickoffs in 1v1.)
-                    if not any(d.role == Role.FORWARD for d in s.drones):
-                        drone.role = Role.FORWARD
+                    if not any(isinstance(d.role, Attacker) for d in s.drones):
+                        drone.role = Attacker()
                     else:
-                        drone.role = Role.GOALIE
+                        drone.role = Goalie()
             
         
         #TODO Find better definitions for OFFENCE and DEFENCE

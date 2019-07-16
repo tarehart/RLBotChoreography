@@ -1,8 +1,6 @@
 '''The Hivemind - Bot helper process.'''
 
-import queue
-import time
-
+# Importing RLBot stuff.
 from rlbot.botmanager.agent_metadata import AgentMetadata
 from rlbot.botmanager.bot_helper_process import BotHelperProcess
 from rlbot.utils import rate_limiter
@@ -12,11 +10,18 @@ from rlbot.utils.structures.game_data_struct import GameTickPacket, FieldInfoPac
 from rlbot.utils.structures.ball_prediction_struct import BallPrediction
 from rlbot.utils.structures.game_interface import GameInterface
 
+# Importing internal hivemind files.
 import data
 import brain
-import actions
+
+# Importing utility functions.
 import numpy as np
 from utils import a3l, world, local
+
+# Other imports.
+import queue
+import time
+
 
 class Hivemind(BotHelperProcess):
 
@@ -94,6 +99,8 @@ class Hivemind(BotHelperProcess):
             # For each drone under the hivemind's control, do something.
             for drone in self.drones:
 
+                # The controls are reset each frame.
+                # TODO Might change this to be handles in actions?
                 drone.ctrl = PlayerInput() # Basically the same as SimpleControllerState().
                 '''
                 {
@@ -110,7 +117,7 @@ class Hivemind(BotHelperProcess):
                 '''
 
                 # Pizzatime is a debug mode. Don't ask me why I called it that. I must have been hungry or something.
-                drone.pizzatime = True
+                drone.pizzatime = False
                 if drone.pizzatime:
                     # Turning in circles.
                     drone.ctrl.throttle = 1
@@ -129,7 +136,7 @@ class Hivemind(BotHelperProcess):
                     points = np.dot(points, A)
                     points += centre
 
-                    self.game_interface.renderer.begin_rendering("turn circles" + str(drone.index))
+                    self.game_interface.renderer.begin_rendering("pepperoni pizza" + str(drone.index))
                     self.game_interface.renderer.draw_polyline_3d(points, self.game_interface.renderer.red())
                     self.game_interface.renderer.end_rendering()
 
@@ -142,7 +149,14 @@ class Hivemind(BotHelperProcess):
 
                 # Actual agent control.
                 else:
-                    drone.ctrl = actions.run(self, drone)
+                    if drone.role != None:
+                        drone.role.execute(self, drone)
+                        
+                        # Rendering role names above drones.
+                        above = drone.pos + a3l([0,0,100])
+                        self.game_interface.renderer.begin_rendering("role" + str(drone.index))
+                        self.game_interface.renderer.draw_string_3d(above, 1, 1, drone.role.name, self.game_interface.renderer.cyan())
+                        self.game_interface.renderer.end_rendering()
                         
 
                 # Send the controls to the bots.
