@@ -25,6 +25,7 @@ class Car:
         self.boost      = 0.0
         self.orient_m   = default_orient_m
         self.turn_r     = 0.0
+        self.predict    = None
 
 class Ball:
     def __init__(self):
@@ -44,10 +45,7 @@ class Drone(Car):
     def __init__(self, index):
         super().__init__(index)
         self.role       = None
-        self.behaviour  = None
-        self.action     = None
-        self.target     = None
-        self.target     = 0.0
+        self.mechanic   = None
         self.pizzatime  = False
 
 # -----------------------------------------------------------
@@ -100,6 +98,22 @@ def a3v(V):
         np.array -- Numpy array with the same contents as the vector3.
     """
     return np.array([V.x, V.y, V.z])
+
+
+def normalise(V):
+    """Normalises a vector.
+    
+    Arguments:
+        V {np.array} -- Vector.
+    
+    Returns:
+        np.array -- Normalised vector.
+    """
+    magnitude = np.linalg.norm(V)
+    if magnitude != 0.0:
+        return V / magnitude
+    else:
+        return V
 
 
 def orient_matrix(R):

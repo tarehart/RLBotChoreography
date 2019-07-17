@@ -39,10 +39,10 @@ class Attacker():
     @staticmethod
     def execute(s, drone):
         if s.strategy == Strategy.KICKOFF:
-            AB_control(drone, s.ball.pos)
+            AB_control(s, drone, s.ball.pos)
 
         else: #for testing
-            AB_control(drone, s.ball.pos)
+            AB_control(s, drone, s.ball.pos)
 
 class Defender():
     def __init__(self):
@@ -62,7 +62,7 @@ class Goalie():
 
 # -----------------------------------------------------------
 
-# PLANNING:
+# KICKOFF POSITIONS:
 
 # Possible kickoff positions.
 ko_positions = {
@@ -72,6 +72,26 @@ ko_positions = {
     'l_back':   a3l([  256, -3840, 0]),
     'centre':   a3l([    0, -4608, 0])
 }
+
+# Positions in order of which should take the kickoff.
+attacker_positions = [
+    'r_corner',
+    'l_corner',
+    'r_back',
+    'l_back',
+    'centre'
+]
+
+# Positions in order of which should be a goalie.
+goalie_positions = [
+    'centre',
+    'l_back',
+    'r_back'
+]
+
+# -----------------------------------------------------------
+
+# PLANNING:
 
 def plan(s):
     """Decides on strategy for the hivemind and assigns drones to roles.
@@ -111,41 +131,46 @@ def plan(s):
 
             # Finds drones' kickoff positions.
             for drone in s.drones:
+                # Resets roles.
                 drone.role = None
 
+                # Looks for closest match in kickoff positions.
                 drone.kickoff = 'r_corner'
-                print("index: {}".format(drone.index))
                 for ko_pos in ko_positions:
-                    dist_to_old_ko = abs(np.sum(drone.pos - ko_positions[drone.kickoff]*team_sign(s.team)))
-                    dist_to_new_ko = abs(np.sum(drone.pos - ko_positions[ko_pos]*team_sign(s.team)))
-                    if dist_to_new_ko < dist_to_old_ko:
+                    if np.linalg.norm(drone.pos - ko_positions[ko_pos]*team_sign(s.team)) < 100:
                         drone.kickoff = ko_pos
+                        break
+                    #dist_to_old_ko = abs(np.sum(drone.pos - ko_positions[drone.kickoff]*team_sign(s.team)))
+                    #dist_to_new_ko = abs(np.sum(drone.pos - ko_positions[ko_pos]*team_sign(s.team)))
+                    #if dist_to_new_ko < dist_to_old_ko:
+                    #    drone.kickoff = ko_pos
 
-                print(drone.kickoff)
+                print("Drone index {} on kickoff {} position.".format(drone.index, drone.kickoff))
 
-                # Assigns a role to each bot for the kickoff.
-                if drone.kickoff == 'r_corner' or drone.kickoff == 'l_corner':
-                    # Take the kickoff if no one is taking yet, otherwise play as defender.
-                    if not any(isinstance(d.role, Attacker) for d in s.drones):
+            # Assigning Attacker role, i.e. who takes the kickoff.
+            for pos in attacker_positions:
+                for drone in s.drones:
+                    if drone.kickoff == pos:
+                        print('Attacker is drone {} in {} position.'.format(drone.index,drone.kickoff))
                         drone.role = Attacker()
-                    else:
-                        drone.role = Defender()
+                        break
+                if any(isinstance(d.role, Attacker) for d in s.drones):
+                    break
 
-                elif drone.kickoff == 'r_back' or drone.kickoff == 'l_back':
-                    # Take the kickoff if no one is taking yet, otherwise play as goalie if no goalie yet, otherwise defend.
-                    if not any(isinstance(d.role, Attacker) for d in s.drones):
-                        drone.role = Attacker()
-                    elif not any(isinstance(d.role, Goalie) for d in s.drones):
-                        drone.role = Goalie()
-                    else:
-                        drone.role = Defender()
+            # Assigning Defender role, takes boost in the kickoff.
+            for pos in goalie_positions:
+                for drone in s.drones:
+                    if drone.kickoff == pos:
+                            drone.role = Goalie()
+                            break
+                if any(isinstance(d.role, Goalie) for d in s.drones):
+                    break
+                        
 
-                else: #kickoff == 'centre'
-                    # Take the kickoff if no one else is taking yet, otherwise play as goalie. (Should only take kickoffs in 1v1.)
-                    if not any(isinstance(d.role, Attacker) for d in s.drones):
-                        drone.role = Attacker()
-                    else:
-                        drone.role = Goalie()
+            # The rest are assigned as Defenders.
+            for drone in s.drones:
+                if drone.role == None:
+                    drone.role = Defender()
             
         
         #TODO Find better definitions for OFFENCE and DEFENCE

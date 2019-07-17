@@ -12,6 +12,12 @@ def setup(s, p, fi, indices):
         fi {FieldInfoPacket} -- Information about the game field.
         indices {set} -- Set containing the indices of each agent the hivemind controls.
     """
+
+    # Game info.
+    s.dt            = 1 / 120.0
+    s.last_time     = 0.0
+    s.timer         = 0.0
+
     # Creates Drone objects.
     s.drones = []
     for index in indices:
@@ -43,10 +49,6 @@ def setup(s, p, fi, indices):
         pad_obj = BoostPad(i, a3v(pad.location))
         pad_type.append(pad_obj)
 
-    # Game info.
-    s.dt            = 1 / 120.0
-    s.last_time     = 0.0
-
 
 def process(s, p):
     """Processes the gametick packet.
@@ -55,6 +57,16 @@ def process(s, p):
         s {BotHelperProcess (self)} -- The process which is processing the packet.
         p {GameTickPacket} -- The game packet being processed.
     """
+
+    # Processing game info.
+    s.time      = p.game_info.seconds_elapsed
+    s.dt        = s.time - s.last_time
+    s.last_time = s.time
+    s.timer     += s.dt
+    s.r_active  = p.game_info.is_round_active
+    s.ko_pause  = p.game_info.is_kickoff_pause
+    s.m_ended   = p.game_info.is_match_ended
+
 
     # Processing drone data.
     for drone in s.drones:
@@ -106,11 +118,3 @@ def process(s, p):
             pad.timer = p.game_boosts[pad.index].timer
             if pad.active == True:
                 s.active_pads.append(pad)
-
-    # Processing other game info.
-    s.time      = p.game_info.seconds_elapsed
-    s.dt        = s.time - s.last_time
-    s.last_time = s.time
-    s.r_active  = p.game_info.is_round_active
-    s.ko_pause  = p.game_info.is_kickoff_pause
-    s.m_ended   = p.game_info.is_match_ended
