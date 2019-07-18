@@ -185,6 +185,20 @@ def world(A, p0, p1):
     return p0 + np.dot(A, p1)
 
 
+def naive_predict(car, s, n):
+    """Predicts the car as if it was going to continue at current velocity in a straight line.
+    
+    Arguments:
+        car {Car} -- The car object who's motion we want to predict.
+        s {float} -- How many seconds to predict for.
+        n {int} -- Number of predicted points (1 less than actual because that includes current position).
+    
+    Returns:
+        [type] -- [description]
+    """
+    return [car.pos + car.vel*(t*s/n) for t in range(n+1)]
+
+
 def get_steer(v, r : float):
     """Aproximated steer for a desired radius of turn and known velocity.
 
@@ -244,7 +258,7 @@ def bezier_quadratic(p0, p1, p2, n : int):
 
 
 def bezier_cubic(p0, p1, p2, p3, n : int):
-    """Returns a position on bezier curve defined by 3 points at t.
+    """Returns a position on bezier curve defined by 4 points at t.
 
     Arguments:
         p0 {np.array} -- Coordinates of point 0.

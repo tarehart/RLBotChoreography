@@ -9,15 +9,19 @@ from utils import a3l, local, normalise
 # PARAMETERS:
 
 # Dodge
-FIRST_JUMP_DURATION = 0.1
+FIRST_JUMP_DURATION = 0.05
 SECOND_JUMP_DELAY = 0.15
 DODGE_EXPIRE = 2.0
 
+# Kickoff
+KO_MIN_ANGLE = 0.1
+KO_TIME_BEFORE_HIT = 0.3
+
 # Angle Based Control
-AB_MIN_ANGLE = 0.2
+AB_MIN_ANGLE = 0.15
 AB_DODGE_DIS = 500
 AB_BOOST_ANGLE = 0.4
-AB_DRIFT_ANGLE = 1.5
+AB_DRIFT_ANGLE = 1.6
 
 
 # -----------------------------------------------------------
@@ -33,15 +37,12 @@ class Dodge:
         drone.ctrl.boost = False
 
         if self.timer < FIRST_JUMP_DURATION:
-            print("first jump")
             drone.ctrl.jump = True
         elif self.timer - FIRST_JUMP_DURATION > SECOND_JUMP_DELAY:
-            print("second jump")
             drone.ctrl.pitch = -self.direction[0]
             drone.ctrl.yaw = self.direction[1]
             drone.ctrl.jump = True
         else:
-            print("not jumping")
             drone.ctrl.jump = False
 
         self.timer += dt
@@ -54,11 +55,48 @@ class Dodge:
 
 # CONTROLLERS:
 
-def AB_control(s, drone, target):
+def KO_control(s, drone):
+    """Kickoff controller.
+    Boosts and turns towards the ball.
+    Dodges right before hitting the ball.
+    
+    Arguments:
+        drone {Drone} -- Drone object which is being controlled.
+        ball {Ball} -- Ball object which is being targetted for the kickoff.
+    """
+    target = s.ball.pos
+    '''if np.linalg.norm(s.ball.pos - drone.pos) > KO_GOTO_PAD_DIS:
+        print("going after pad")
+        for pad in s.active_pads:
+            if np.linalg.norm(pad.pos - drone.pos) < np.linalg.norm(target - drone.pos):
+                target = pad.pos
+
+    else:
+        print("going after ball")'''
+    # TODO Fix back kickoffs by taking boost or dodging.
+
+    # Find the vector towards the target in local coordinates.
+    local_target = local(drone.orient_m, drone.pos, target)
+    # Find the clockwise angle to the target on the horizontal plane of the car.
+    angle = np.arctan2(local_target[1], local_target[0])
+    # Estimate time to hit the ball.
+    time_to_hit = local_target[0] / np.linalg.norm(drone.vel)
+    # If not dodging, dodge if about to hit, otherwise steer towards ball.
+    if not isinstance(drone.mechanic, Dodge):
+        if time_to_hit <= KO_TIME_BEFORE_HIT and all(target == s.ball.pos):
+            drone.mechanic = Dodge(local_target)
+        else:
+            drone.ctrl.throttle = 1
+            drone.ctrl.boost = True
+            if abs(angle) > KO_MIN_ANGLE:
+                drone.ctrl.steer = 1 if angle > 0 else -1
+        
+
+
+def AB_control(drone, target):
     """Angle Based Control.
     Turns towards the target.
     Uses handbrake if the angle is too great.
-    Dodges forward if it is facing the target and has space.
     
     Arguments:
         drone {Drone} -- Drone object which is being controlled.
@@ -68,30 +106,16 @@ def AB_control(s, drone, target):
     local_target = local(drone.orient_m, drone.pos, target)
     # Find the clockwise angle to the target on the horizontal plane of the car.
     angle = np.arctan2(local_target[1], local_target[0])
-
     # Turn if needed.
     if abs(angle) > AB_MIN_ANGLE:
         drone.ctrl.steer = 1 if angle > 0 else -1
-
-    '''
-    # Dodge if not turning.
-    elif local_target[0] > AB_DODGE_DIS:   
-        if drone.mechanic == None:
-            drone.mechanic = Dodge(local_target)
-
-    # Step through Dodge.
-    if isinstance(drone.mechanic, Dodge):
-        drone.mechanic.step(s.dt, drone)
-    '''
-
     # Boost if angle is small.
     if abs(angle) < AB_BOOST_ANGLE:
         drone.ctrl.boost = True
-
     # Apply handbrake for hard turns.
     if abs(angle) > AB_DRIFT_ANGLE:
         drone.ctrl.handbrake = True
-
+    # Throttle is always on full.
     drone.ctrl.throttle = 1
 
 

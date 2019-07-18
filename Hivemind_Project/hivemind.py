@@ -87,14 +87,11 @@ class Hivemind(BotHelperProcess):
             # Ball prediction.           
             self.game_interface.update_ball_prediction(self.ball.predict)
 
-            # Rendering Ball prediction.
-            locations = [step.physics.location for step in self.ball.predict.slices]
-            self.game_interface.renderer.begin_rendering('ball prediction')
-            self.game_interface.renderer.draw_polyline_3d(locations, self.game_interface.renderer.pink())
-            self.game_interface.renderer.end_rendering()
-
             # Planning
             brain.plan(self)
+
+            # Rendering
+            self.render_debug()
 
             # For each drone under the hivemind's control, do something.
             for drone in self.drones:
@@ -164,3 +161,17 @@ class Hivemind(BotHelperProcess):
 
             # Rate limit sleep.
             rate_limit.acquire()
+
+    def render_debug(self):
+        # Rendering Ball prediction.
+        locations = [step.physics.location for step in self.ball.predict.slices]
+        self.game_interface.renderer.begin_rendering('ball prediction')
+        self.game_interface.renderer.draw_polyline_3d(locations, self.game_interface.renderer.pink())
+        self.game_interface.renderer.end_rendering()
+
+        # Rendering naive prediction
+        self.game_interface.renderer.begin_rendering('opponent prediction')
+        for opponent in self.opponents:
+            self.game_interface.renderer.draw_polyline_3d(opponent.predict, self.game_interface.renderer.blue())
+        self.game_interface.renderer.end_rendering()
+

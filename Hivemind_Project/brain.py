@@ -3,7 +3,7 @@
 import numpy as np
 from utils import a3l, team_sign
 
-from control import AB_control
+from control import KO_control, AB_control
 
 # -----------------------------------------------------------
 
@@ -30,7 +30,11 @@ class Demo():
 
     @staticmethod
     def execute(s, drone):
-        pass
+
+        # Steps through any mechanic the bot is attempting.
+        if drone.mechanic is not None:
+            drone.mechanic.step(s.dt, drone)
+
 
 class Attacker():
     def __init__(self):
@@ -39,10 +43,15 @@ class Attacker():
     @staticmethod
     def execute(s, drone):
         if s.strategy == Strategy.KICKOFF:
-            AB_control(s, drone, s.ball.pos)
+            KO_control(s, drone)
 
         else: #for testing
-            AB_control(s, drone, s.ball.pos)
+            AB_control(drone, s.ball.pos)
+
+        # Steps through any mechanic the bot is attempting.
+        if drone.mechanic is not None:
+            drone.mechanic.step(s.dt, drone)
+
 
 class Defender():
     def __init__(self):
@@ -50,7 +59,11 @@ class Defender():
 
     @staticmethod
     def execute(s, drone):
-        pass
+
+        # Steps through any mechanic the bot is attempting.
+        if drone.mechanic is not None:
+            drone.mechanic.step(s.dt, drone)
+
 
 class Goalie():
     def __init__(self):
@@ -58,7 +71,10 @@ class Goalie():
 
     @staticmethod
     def execute(s, drone):
-        pass
+
+        # Steps through any mechanic the bot is attempting.
+        if drone.mechanic is not None:
+            drone.mechanic.step(s.dt, drone)
 
 # -----------------------------------------------------------
 
@@ -150,6 +166,8 @@ def plan(s):
             # Assigning Attacker role, i.e. who takes the kickoff.
             for pos in attacker_positions:
                 for drone in s.drones:
+                    if drone.role is not None:
+                        continue
                     if drone.kickoff == pos:
                         print('Attacker is drone {} in {} position.'.format(drone.index,drone.kickoff))
                         drone.role = Attacker()
@@ -160,6 +178,8 @@ def plan(s):
             # Assigning Defender role, takes boost in the kickoff.
             for pos in goalie_positions:
                 for drone in s.drones:
+                    if drone.role is not None:
+                        continue
                     if drone.kickoff == pos:
                             drone.role = Goalie()
                             break
@@ -169,7 +189,7 @@ def plan(s):
 
             # The rest are assigned as Defenders.
             for drone in s.drones:
-                if drone.role == None:
+                if drone.role is None:
                     drone.role = Defender()
             
         

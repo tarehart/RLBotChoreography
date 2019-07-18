@@ -1,6 +1,6 @@
 '''Rocket League data processing.'''
 
-from utils import Car, Ball, BoostPad, Drone, a3l, a3r, a3v, orient_matrix, turn_r
+from utils import Car, Ball, BoostPad, Drone, a3l, a3r, a3v, orient_matrix, turn_r, naive_predict
 
 
 def setup(s, p, fi, indices):
@@ -103,6 +103,8 @@ def process(s, p):
         opponent.boost      = p.game_cars[opponent.index].boost
         opponent.orient_m   = orient_matrix(opponent.rot)
         opponent.turn_r     = turn_r(opponent.vel)
+
+        opponent.predict    = naive_predict(opponent, 2.0, 10)
 
     # Processing Ball data.
     s.ball.pos      = a3v(p.game_ball.physics.location)
