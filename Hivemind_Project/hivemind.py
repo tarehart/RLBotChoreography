@@ -87,73 +87,27 @@ class Hivemind(BotHelperProcess):
             # Ball prediction.           
             self.game_interface.update_ball_prediction(self.ball.predict)
 
-            # Planning
+            # Planning.
             brain.plan(self)
 
-            # Rendering
+            # Rendering.
             self.render_debug()
 
             # For each drone under the hivemind's control, do something.
             for drone in self.drones:
 
                 # The controls are reset each frame.
-                # TODO Might change this to be handles in actions?
                 drone.ctrl = PlayerInput() # Basically the same as SimpleControllerState().
-                '''
-                {
-                throttle:   float; /// -1 for full reverse, 1 for full forward
-                steer:      float; /// -1 for full left, 1 for full right
-                pitch:      float; /// -1 for nose down, 1 for nose up
-                yaw:        float; /// -1 for full left, 1 for full right
-                roll:       float; /// -1 for roll left, 1 for roll right
-                jump:       bool;  /// true if you want to press the jump button
-                boost:      bool;  /// true if you want to press the boost button
-                handbrake:  bool;  /// true if you want to press the handbrake button
-                use_item:   bool;  /// true if you want to use a rumble item
-                }
-                '''
 
-                # Pizzatime is a debug mode. Don't ask me why I called it that. I must have been hungry or something.
-                drone.pizzatime = False
-                if drone.pizzatime:
-                    # Turning in circles.
-                    drone.ctrl.throttle = 1
-                    drone.ctrl.steer = 1
-
-                    # Rendering turn circles.
-                    r = drone.turn_r
-                    A = drone.orient_m
-
-                    detail = 12
-                    centre = world(A, drone.pos, a3l([0,r,0]))
-                    points = np.zeros((detail,3))
-                    theta  = np.linspace(0, 2*np.pi, detail)
-                    points[:,0] += r*np.cos(theta)
-                    points[:,1] += r*np.sin(theta)
-                    points = np.dot(points, A)
-                    points += centre
-
-                    self.game_interface.renderer.begin_rendering("pepperoni pizza" + str(drone.index))
-                    self.game_interface.renderer.draw_polyline_3d(points, self.game_interface.renderer.red())
-                    self.game_interface.renderer.end_rendering()
-
-                    # Test prints into console.
-                    # print("drone index:", drone.index)
-                    opp = self.opponents[0]
-                    
-                    # Testing reversibility of world and local functions
-                    print(local(opp.orient_m, opp.pos, self.ball.pos))
-
-                # Actual agent control.
-                else:
-                    if drone.role != None:
-                        drone.role.execute(self, drone)
+                # Role execution.
+                if drone.role is not None:
+                    drone.role.execute(self, drone)
                         
-                        # Rendering role names above drones.
-                        above = drone.pos + a3l([0,0,100])
-                        self.game_interface.renderer.begin_rendering("role" + str(drone.index))
-                        self.game_interface.renderer.draw_string_3d(above, 1, 1, drone.role.name, self.game_interface.renderer.cyan())
-                        self.game_interface.renderer.end_rendering()
+                    # Rendering role names above drones.
+                    above = drone.pos + a3l([0,0,100])
+                    self.game_interface.renderer.begin_rendering("role" + str(drone.index))
+                    self.game_interface.renderer.draw_string_3d(above, 1, 1, drone.role.name, self.game_interface.renderer.cyan())
+                    self.game_interface.renderer.end_rendering()
                         
 
                 # Send the controls to the bots.

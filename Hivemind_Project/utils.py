@@ -46,7 +46,6 @@ class Drone(Car):
         super().__init__(index)
         self.role       = None
         self.mechanic   = None
-        self.pizzatime  = False
 
 # -----------------------------------------------------------
 
@@ -114,6 +113,25 @@ def normalise(V):
         return V / magnitude
     else:
         return V
+
+
+def cap(value, minimum, maximum):
+    """Caps the value at given minumum and maximum.
+    
+    Arguments:
+        value {float or int} -- The value being capped.
+        minimum {float or int} -- Smallest value.
+        maximum {float or int} -- Largest value.
+    
+    Returns:
+        float or int -- The capped value or the original value if within range.
+    """
+    if value > maximum:
+        return maximum
+    elif value < minimum:
+        return minimum
+    else:
+        return value
 
 
 def orient_matrix(R):
@@ -199,35 +217,6 @@ def naive_predict(car, s, n):
     return [car.pos + car.vel*(t*s/n) for t in range(n+1)]
 
 
-def get_steer(v, r : float):
-    """Aproximated steer for a desired radius of turn and known velocity.
-
-    Arguments:
-        v {np.array} -- A velocity vector.
-        r {float} -- The desired radius of turn.
-
-    Returns:
-        float -- The magnitude of steering needed for the turn. If turn is impossible, is 1.
-    """
-    # Interpolation of the graph for max curvature given speed.
-    s = np.array([0, 500, 1000, 1500, 1750, 2300])
-    k = np.array([0.0069, 0.00396, 0.00235, 0.001375, 0.0011, 0.00088])
-    f = interp1d(s, k)
-
-    # Maximum curvature possible given velocity.
-    max_k = f(np.linalg.norm(v))
-
-    # Curvature of the desired radius of turn.
-    want_k = 1 / r
-
-    # Checks if turn is possible.
-    if max_k >= want_k:
-        # Curvature is roughly proportional to steer.
-        return want_k / max_k
-    else:
-        return 1.0
-
-
 def turn_r(v):
     """Calculates the minimum turning radius for given velocity.
 
@@ -239,39 +228,3 @@ def turn_r(v):
     """
     s = np.linalg.norm(v)
     return -6.901E-11 * s**4 + 2.1815E-07 * s**3 - 5.4437E-06 * s**2 + 0.12496671 * s + 157
-
-
-def bezier_quadratic(p0, p1, p2, n : int):
-    """Returns a position on bezier curve defined by 3 points at t.
-
-    Arguments:
-        p0 {np.array} -- Coordinates of point 0.
-        p1 {np.array} -- Coordinates of point 1.
-        p2 {np.array} -- Coordinates of point 2.
-        n {int} -- Number of points on the curve to generate.
-
-    Returns:
-        np.array -- Coordinates on the curve.
-    """
-    t = np.linspace(0.0, 1.0, n)
-    return p1 + (1-t)**2*(p0-p1) + t**2*(p2-p1)
-
-
-def bezier_cubic(p0, p1, p2, p3, n : int):
-    """Returns a position on bezier curve defined by 4 points at t.
-
-    Arguments:
-        p0 {np.array} -- Coordinates of point 0.
-        p1 {np.array} -- Coordinates of point 1.
-        p2 {np.array} -- Coordinates of point 2.
-        p3 {np.array} -- Coordinates of point 3.
-        n {int} -- Number of points on the curve to generate.
-
-    Returns:
-        np.array -- Coordinates on the curve.
-    """
-    t = np.linspace(0.0, 1.0, n)
-    return (1-t)**3*p0 + 3*(1-t)**2*t*p1 + 3*(1-t)*t**2*p2 + t**3*p3
-
-# TODO COH curves (Composite optimised geometric hermite curves)
-# http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.104.1622&rep=rep1&type=pdf

@@ -16,7 +16,6 @@ def setup(s, p, fi, indices):
     # Game info.
     s.dt            = 1 / 120.0
     s.last_time     = 0.0
-    s.timer         = 0.0
 
     # Creates Drone objects.
     s.drones = []
@@ -62,7 +61,6 @@ def process(s, p):
     s.time      = p.game_info.seconds_elapsed
     s.dt        = s.time - s.last_time
     s.last_time = s.time
-    s.timer     += s.dt
     s.r_active  = p.game_info.is_round_active
     s.ko_pause  = p.game_info.is_kickoff_pause
     s.m_ended   = p.game_info.is_match_ended
