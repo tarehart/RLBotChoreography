@@ -128,6 +128,7 @@ dmypy.json
 .pyre/
 
 ### VisualStudioCode ###
+Hivemind_Project/.vscode/*
 .vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json
@@ -140,4 +141,3 @@ dmypy.json
 .history
 
 # End of https://www.gitignore.io/api/python,visualstudiocode
-
