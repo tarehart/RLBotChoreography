@@ -43,7 +43,8 @@ class BoostPad:
 class Drone(Car):
     def __init__(self, index):
         super().__init__(index)
-        pass
+        self.role = None
+        self.controller = None
 
 # -----------------------------------------------------------
 
@@ -240,3 +241,31 @@ def bezier_cubic(p0, p1, p2, p3, n : int):
     """
     t = np.linspace(0.0, 1.0, n)
     return (1-t)**3*p0 + 3*(1-t)**2*t*p1 + 3*(1-t)*t**2*p2 + t**3*p3
+
+
+def cap(value, minimum, maximum):
+    if value > maximum:
+        return maximum
+    elif value < minimum:
+        return minimum
+    else:
+        return value
+
+
+def normalise(V):
+    magnitude = np.linalg.norm(V)
+    return V/magnitude if magnitude > 0 else V
+
+
+def counterclockwise_angle(V):
+    angle = np.arctan2(V[1], V[0])
+    return angle if angle > 0 else 2*np.pi - angle
+
+def angle_between_vectors(a, b):
+    """
+    set a to be clockwise from b.
+    angle from a to b.
+    """
+    alpha = counterclockwise_angle(a)
+    beta = counterclockwise_angle(b)
+    return beta - alpha

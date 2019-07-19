@@ -12,6 +12,13 @@ def setup(s, p, fi, indices):
         fi {FieldInfoPacket} -- Information about the game field.
         indices {set} -- Set containing the indices of each agent the hivemind controls.
     """
+
+    # Game info.
+    s.dt            = 1 / 120.0
+    s.last_time     = 0.0
+
+    s.strategy      = None
+
     # Creates Drone objects.
     s.drones = []
     for index in indices:
@@ -25,10 +32,11 @@ def setup(s, p, fi, indices):
     s.teammates = []
     s.opponents = []
     for index in range(p.num_cars):
-        if p.game_cars[index].team == s.team:
-            s.teammates.append(Car(index))
-        else:
-            s.opponents.append(Car(index))
+        if index not in indices:
+            if p.game_cars[index].team == s.team:
+                s.teammates.append(Car(index))
+            else:
+                s.opponents.append(Car(index))
     
     # Creates a Ball object.
     s.ball = Ball()
@@ -41,11 +49,6 @@ def setup(s, p, fi, indices):
         pad_type = s.l_pads if pad.is_full_boost else s.s_pads
         pad_obj = BoostPad(i, a3v(pad.location))
         pad_type.append(pad_obj)
-
-    # Game info.
-    s.dt            = 1 / 120.0
-    s.last_time     = 0.0
-
 
 def process(s, p):
     """Processes the gametick packet.

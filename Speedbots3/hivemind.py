@@ -14,7 +14,9 @@ from rlbot.utils.structures.game_data_struct import GameTickPacket, FieldInfoPac
 from rlbot.utils.structures.ball_prediction_struct import BallPrediction
 from rlbot.utils.structures.game_interface import GameInterface
 
+from utils import a3v
 import data
+import brain
 
 class Hivemind(BotHelperProcess):
 
@@ -80,26 +82,42 @@ class Hivemind(BotHelperProcess):
             # Ball prediction.           
             self.game_interface.update_ball_prediction(self.ball.predict)
 
-            # For each drone under the hivemind's control, do something.
-            for index in self.running_indices:
+            brain.think(self)
 
-                ctrl = PlayerInput() # Basically the same as SimpleControllerState().
-                '''
-                {
-                throttle:   float; /// -1 for full reverse, 1 for full forward
-                steer:      float; /// -1 for full left, 1 for full right
-                pitch:      float; /// -1 for nose down, 1 for nose up
-                yaw:        float; /// -1 for full left, 1 for full right
-                roll:       float; /// -1 for roll left, 1 for roll right
-                jump:       bool;  /// true if you want to press the jump button
-                boost:      bool;  /// true if you want to press the boost button
-                handbrake:  bool;  /// true if you want to press the handbrake button
-                use_item:   bool;  /// true if you want to use a rumble item
-                }
-                '''
+            for drone in self.drones:
+                drone.ctrl = PlayerInput()
+                if drone.role is not None:
+                    drone.role.execute(self, drone)
+                self.game_interface.update_player_input(drone.ctrl, drone.index)
 
-                # Send the controls to the bots.
-                self.game_interface.update_player_input(ctrl, index)
+            self.draw_debug()
 
             # Rate limit sleep.
             rate_limit.acquire()
+
+
+    def draw_debug(self):
+        self.game_interface.renderer.begin_rendering()
+        path = [a3v(step.physics.location) for step in self.ball.predict.slices]
+        self.game_interface.renderer.draw_polyline_3d(path, self.game_interface.renderer.pink())
+
+        for drone in self.drones:
+            if drone.role is not None:
+                self.game_interface.renderer.draw_string_3d(drone.pos, 1, 1, drone.role.name, self.game_interface.renderer.white())
+        self.game_interface.renderer.end_rendering()
+
+"""
+ball_prediction_struct = {
+    'slices': {
+        'physics': {
+            'location': {'x': 0.0, 'y': 0.0, 'z': 0.0},
+            'rotation': {'pitch': 0.0, 'yaw': 0.0, 'roll': 0.0},
+            'velocity': {'x': 0.0, 'y': 0.0, 'z': 0.0},
+            'angular_velocity': {'x': 0.0, 'y': 0.0, 'z': 0.0}
+        },
+        'game_seconds': 0.0,
+    },
+    { ... }
+    'num_slices': 360,
+}
+"""
