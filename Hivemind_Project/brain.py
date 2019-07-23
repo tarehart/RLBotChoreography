@@ -6,13 +6,6 @@ from control import AngleBased, TargetShot, Dodge
 
 # -----------------------------------------------------------
 
-# PARAMETERS:
-
-KO_DODGE_TIME = 0.35
-KO_PAD_TIME = 0.1
-
-# -----------------------------------------------------------
-
 # STRATEGIES:
 
 class Strategy:
@@ -27,113 +20,6 @@ class Strategy:
 #   -> Shoot into corner, Support tries to hit on rebound.
 #   -> Two Goalies, one on each side of goal.
 #   -> Demos surround opponent from multiple sides.
-
-# -----------------------------------------------------------
-
-# ROLES:
-
-# TODO Add functionality to each role.
-# -> look at speedbots plan for inspiration.
-
-class Role:
-    def __init__(self, name):
-        self.name = name
-        self.timer = 0.0
-
-    def execute(self, hive, drone):
-        self.timer += hive.dt
-        # Steps through any mechanic the bot is attempting.
-        if drone.controller is not None:
-            drone.controller.run()
-
-class Demo(Role):
-    def __init__(self):
-        super().__init__("Demo")
-
-    @staticmethod
-    def execute(self, hive, drone):
-        if hive.strategy == Strategy.DEFENCE:
-            if self.target is None:
-                # Assign target as closest opponent to ball.
-                self.target = sorted(hive.opponents, key=lambda car: np.linalg.norm(car.pos - hive.ball.pos))[0]
-
-            if drone.controller is None:
-                pass
-
-        super().execute(hive, drone)
-
-# TODO: Rewrite Roles to work with new controllers.
-'''
-class Attacker(Role):
-    def __init__(self):
-        super().__init__("Attacker")
-        
-    @staticmethod
-    def execute(hive, drone):
-        drone.role.timer += hive.dt
-
-        if hive.strategy == Strategy.KICKOFF:
-            distance = np.linalg.norm(drone.pos - hive.ball.pos)
-            time_to_hit = distance / np.linalg.norm(drone.vel) if np.linalg.norm(drone.vel) > 0 else 10
-
-            if time_to_hit <= KO_DODGE_TIME:
-                drone.controller = Dodge(drone, local(drone.orient_m, drone.pos, hive.ball.pos))
-                drone.role.timer = 0
-
-            if drone.controller is None:
-                if drone.kickoff == 'r_back' or drone.kickoff == 'l_back':
-                    drone.controller = AB_Control(drone, a3l([0.0, -2816.0, 70.0])*team_sign(hive.team))
-                    drone.role.timer = 0
-                    #drone.controller = LINE_PD_Control(drone, a3l([0,-6000,0])*team_sign(hive.team), hive.ball.pos)
-                else:
-                    drone.controller = AB_Control(drone, hive.ball.pos)
-
-            elif isinstance(drone.controller,AB_Control):
-                if drone.role.timer >= KO_PAD_TIME:
-                    AB_Control(drone, hive.ball.pos)
-
-        else:
-            drone.controller = AB_Control(drone, hive.ball.pos)
-
-
-        if drone.controller is not None:
-            if isinstance(drone.controller,Dodge):
-                drone.controller.run(drone.role.timer)
-            else: 
-                drone.controller.run()
-
-
-class Goalie(Role):
-    def __init__(self):
-        super().__init__("Goalie")
-
-    @staticmethod
-    def execute(s, drone):
-        if hive.strategy == Strategy.KICKOFF:
-            if drone.controller is None:
-                drone.controller = GK_Control(drone, goal_pos*team_sign(hive.team))
-    
-        else:
-            if drone.controller is None:
-                drone.controller = GK_Control(drone, goal_pos*team_sign(hive.team))
-
-        if drone.controller is not None:
-            drone.controller.run()
-
-
-class Support(Role):
-    def __init__(self):
-        super().__init__("Support")
-
-    @staticmethod
-    def execute(s, drone):
-        if hive.strategy == Strategy.KICKOFF:
-            if drone.controller is None:
-                drone.controller = AB_Control(drone, best_boost[drone.kickoff]*team_sign(hive.team))
-
-        if drone.controller is not None:
-            drone.controller.run()
-'''
 
 # -----------------------------------------------------------
 
@@ -163,6 +49,109 @@ best_boost = {
 goal_pos = a3l([0,-5300,0])
 
 # TODO Consider using lambda sorting for kickoffs or other?
+
+# -----------------------------------------------------------
+
+# ROLES:
+
+class Role:
+    def __init__(self, name):
+        self.name = name
+        self.timer = 0.0
+
+    def execute(self, hive):
+        # Increments the timer.
+        self.timer += hive.dt
+
+
+class Demo(Role):
+    def __init__(self, specific_target):
+        super().__init__("Demo")
+        self.marked_for_destruction = None
+
+    def execute(self, hive, drone):
+
+        if hive.strategy == Strategy.DEFENCE:
+            if self.marked_for_destruction is None:
+                # Mark the closest opponent to ball.
+                self.marked_for_destruction = sorted(hive.opponents, key=lambda car: np.linalg.norm(car.pos - hive.ball.pos))[0]
+            elif self.marked_for_destruction.dead:
+                self.marked_for_destruction = None
+
+            if drone.controller is None:
+                drone.controller = AngleBased()
+            else:
+                drone.controller.run(hive, drone, self.marked_for_destruction.pos)
+
+        super().execute(hive)
+
+# TODO: Rewrite Roles to work with new controllers.
+class Attacker(Role):
+    def __init__(self):
+        super().__init__("Attacker")
+        self.KO_DODGE_TIME = 0.35
+        self.KO_PAD_TIME = 0.1
+
+    def execute(self, hive, drone):
+
+        if hive.strategy == Strategy.KICKOFF:
+            # Find estimated time to hit the ball.
+            distance = np.linalg.norm(drone.pos - hive.ball.pos)
+            time_to_hit = distance / np.linalg.norm(drone.vel) if np.linalg.norm(drone.vel) > 0 else 10
+
+            # If the estimated time to hit is small, dodge.
+            if time_to_hit <= self.KO_DODGE_TIME:
+                drone.controller = Dodge()
+
+            # Use AngleBased controller if none is set.
+            if drone.controller is None:
+                drone.controller = AngleBased()
+
+            # If using AngleBased controller.
+            elif isinstance(drone.controller, AngleBased):
+                # Drive towards the pad on r_left or l_left kickoffs.
+                if drone.kickoff in ('r_back','l_back') and drone.role.timer <= self.KO_PAD_TIME:
+                    drone.controller.run(hive, drone, a3l([0.0, -2816.0, 70.0])*team_sign(hive.team))
+                # Drive towards the ball.
+                else:
+                    drone.controller.run(hive, drone, hive.ball.pos)
+            
+            # If using Dodge controller.
+            elif isinstance(drone.controller, Dodge):
+                drone.controller.run(hive, drone, hive.ball.pos)
+
+        else:
+            # Else 
+            if drone.controller is None:
+                drone.controller = TargetShot()
+
+            elif isinstance(drone.controller, TargetShot):
+                drone.controller.run(hive, drone, goal_pos*team_sign((hive.team + 1) % 2))
+
+        super().execute(hive)
+
+
+class Goalie(Role):
+    def __init__(self):
+        super().__init__("Goalie")
+
+    def execute(self, hive, drone):
+        if hive.strategy == Strategy.KICKOFF:
+            pass
+        super().execute(hive)
+
+
+class Support(Role):
+    def __init__(self):
+        super().__init__("Support")
+
+    def execute(self, hive, drone):
+        if hive.strategy == Strategy.KICKOFF:
+            pass
+        super().execute(hive)
+
+# TODO Add functionality to each role.
+# -> look at speedbots plan for inspiration.
 
 # -----------------------------------------------------------
 

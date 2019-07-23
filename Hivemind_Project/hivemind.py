@@ -128,7 +128,7 @@ def render_debug(renderer, hive, drone):
     '''
     self.game_interface.renderer.begin_rendering('opponent prediction')
     for opponent in hive.opponents:
-        renderer.draw_polyline_3d(opponent.predict, renderer.blue())
+    renderer.draw_polyline_3d(opponent.predict, renderer.blue())
     renderer.end_rendering()
     '''
 

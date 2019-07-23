@@ -136,7 +136,9 @@ class Dodge(Controller):
         
     def run(self, hive, drone, target):
         # TODO Docstring for run() and comments.
-        direction = normalise(target)
+
+        local_target = local(drone.orient_m, drone.pos, target)
+        direction = normalise(local_target)
 
         if self.timer <= self.FST_JUMP_DURATION:
             drone.ctrl.jump = True
@@ -149,9 +151,8 @@ class Dodge(Controller):
         if self.timer >= self.FST_JUMP_DURATION + self.SND_JUMP_DELAY + self.SND_JUMP_DURATION:
             drone.controller = None
 
-        drone.ctrl.boost = False
-
         super().run(hive)
+
 
 # TODO Half flips and diagonal dodging
 # https://www.youtube.com/watch?v=pX950bhGhJE

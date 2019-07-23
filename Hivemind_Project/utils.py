@@ -18,40 +18,54 @@ class Car:
         rot {np.ndarray} -- Rotation (pitch, yaw, roll).
         vel {np.ndarray} -- Velocity vector.
         ang_vel {np.ndarray} -- Angular velocity (x, y, z). Chip's omega.
+        dead {bool} -- Whether the car has been demolished.
         wheel_c {bool} -- Whether all four wheels are touching a surface.
         sonic {bool} -- Whether the car is supersonic.
+        jumped {bool} -- Whether the car has jumped.
+        d_jumped {bool} -- Whether the car has double jumped.
+        name {str} -- Name of bot or human controlling the car.
+        team {int} -- What team: 0 is blue, 1 is orange.
         boost {float} -- Amount of boost.
+
         orient_m {np.ndarray} -- A local orientation matrix. Chip's theta.
         turn_r {float} -- Turn radius.
         predict {dict} -- Predicted movement.
     """
-    def __init__(self, index : int):
-        self.index      = index
-        self.pos        = np.zeros(3)
-        self.rot        = np.zeros(3)
-        self.vel        = np.zeros(3)
-        self.ang_vel    = np.zeros(3)
-        self.wheel_c    = False
-        self.sonic      = False
-        self.boost      = 0.0
-        self.orient_m   = np.identity(3)
-        self.turn_r     = 0.0
-        self.predict    = {}
+    def __init__(self, index : int, team : int, name : str):
+        self.index      : int           = index
+        self.pos        : np.ndarray    = np.zeros(3)
+        self.rot        : np.ndarray    = np.zeros(3)
+        self.vel        : np.ndarray    = np.zeros(3)
+        self.ang_vel    : np.ndarray    = np.zeros(3)
+        self.dead       : bool          = False
+        self.wheel_c    : bool          = False
+        self.sonic      : bool          = False
+        self.jumped     : bool          = False
+        self.d_jumped   : bool          = False
+        self.name       : str           = name
+        self.team       : int           = team
+        self.boost      : float         = 0.0
+        
+        self.orient_m   : np.ndarray    = np.identity(3)
+        self.turn_r     : float         = 0.0
+        self.predict    : dict          = {}
 
 class Ball:
     """Houses the processed data from the packet for the ball.
 
     Attributes:
-        pos {np.ndarray} -- Position vector. 
+        pos {np.ndarray} -- Position vector.
+        rot {np.ndarray} -- Rotation (pitch, yaw, roll). 
         vel {np.ndarray} -- Velocity vector.
         ang_vel {np.ndarray} -- Angular velocity (x, y, z). Chip's omega.
         predict {dict} -- Ball prediction.
     """
     def __init__(self):
-        self.pos        = np.zeros(3)
-        self.vel        = np.zeros(3)
-        self.ang_vel    = np.zeros(3)
-        self.predict    = {}
+        self.pos        : np.ndarray    = np.zeros(3)
+        self.rot        : np.ndarray    = np.zeros(3)
+        self.vel        : np.ndarray    = np.zeros(3)
+        self.ang_vel    : np.ndarray    = np.zeros(3)
+        self.predict    : dict          = {}
 
 class BoostPad:
     """Houses the processed data from the packet fot the boost pads.
@@ -62,11 +76,11 @@ class BoostPad:
         active {bool} -- Whether the boost pad is active and can be collected.
         timer {float} -- How long until the boost pad is active again.
     """
-    def __init__(self, index, pos):
-        self.index      = index
-        self.pos        = pos
-        self.active     = True
-        self.timer      = 0.0
+    def __init__(self, index : int, pos : np.ndarray):
+        self.index      : int           = index
+        self.pos        : np.ndarray    = pos
+        self.active     : bool          = True
+        self.timer      : float         = 0.0
 
 class Drone(Car):
     """A Drone is a Car under the hivemind's control.
@@ -79,8 +93,8 @@ class Drone(Car):
         role {Role} -- The drone's role in a strategy.
         controller {Controller} -- The drone's controller generating inputs. 
     """
-    def __init__(self, index):
-        super().__init__(index)
+    def __init__(self, index : int, team : int, name : str):
+        super().__init__(index, team, name)
         self.role       = None
         self.controller = None
 
@@ -224,6 +238,7 @@ def local(A : np.ndarray, p0 : np.ndarray, p1 : np.ndarray) -> np.ndarray:
         np.ndarray -- Local x, y, and z coordinates.
     """
     return np.dot(A.T, p1 - p0)
+
 
 def world(A : np.ndarray, p0 : np.ndarray, p1 : np.ndarray) -> np.ndarray:
     """Transforms local into world coordinates.
