@@ -1,125 +1,157 @@
+'''Drone control.'''
+
 import numpy as np
-from utils import local, cap, normalise
+from utils import a3l, local, cap, normalise
 
 
 '''
-throttle:   float; /// -1 for full reverse, 1 for full forward
-steer:      float; /// -1 for full left, 1 for full right
-pitch:      float; /// -1 for nose down, 1 for nose up
-yaw:        float; /// -1 for full left, 1 for full right
-roll:       float; /// -1 for roll left, 1 for roll right
-jump:       bool;  /// true if you want to press the jump button
-boost:      bool;  /// true if you want to press the boost button
-handbrake:  bool;  /// true if you want to press the handbrake button
-use_item:   bool;  /// true if you want to use a rumble item
+Controller inputs:
+    throttle:   float; ## -1 for full reverse, 1 for full forward.
+    steer:      float; ## -1 for full left, 1 for full right.
+    pitch:      float; ## -1 for nose down, 1 for nose up.
+    yaw:        float; ## -1 for full left, 1 for full right.
+    roll:       float; ## -1 for roll left, 1 for roll right.
+    jump:       bool;  ## True if you want to press the jump button.
+    boost:      bool;  ## True if you want to press the boost button.
+    handbrake:  bool;  ## True if you want to press the handbrake button.
+    use_item:   bool;  ## True if you want to use a rumble item.
 '''
 
-# PARAMETERS:
+class Controller:
+    """Base controller class. Is inherited from by other controllers."""
+    def __init__(self):
+        self.timer = 0.0
 
-AB_MIN_ANGLE = 0.1
-AB_BOOST_ANGLE = 0.3
-AB_DRIFT_ANGLE = 1.6
-
-GK_MIN_ANGLE = 0.2
-GK_BACK_ANGLE = np.pi / 2
-GK_THROTTLE = 0.01
-
-'''
-LINE_PD_ALPHA = -1 / 1000
-LINE_PD_BETA = 1 / (2*np.pi)
-LINE_PD_BOOST_ANGLE = 0.2
-'''
-
-DG_1_JUMP_DURATION = 0.05
-DG_2_JUMP_DELAY = 0.05
-DG_2_JUMP_DURATION = 2 - DG_1_JUMP_DURATION - DG_2_JUMP_DELAY
-
-class AB_Control:
-    def __init__(self, drone, target):
-        self.drone = drone
-        self.target = target
-
-    def run(self):
-        local_target = local(self.drone.orient_m, self.drone.pos, self.target)
-        angle = np.arctan2(local_target[1], local_target[0])
-
-        if abs(angle) > AB_MIN_ANGLE:
-            self.drone.ctrl.steer = 1 if angle > 0 else -1
-
-        if abs(angle) < AB_BOOST_ANGLE:
-            self.drone.ctrl.boost = True
-
-        if abs(angle) > AB_DRIFT_ANGLE:
-            self.drone.ctrl.handbrake = True
-
-
-        self.drone.ctrl.throttle = 1
-
-class GK_Control:
-    def __init__(self, drone, target):
-        self.drone = drone
-        self.target = target
-
-    def run(self):
-        local_target = local(self.drone.orient_m, self.drone.pos, self.target)
-        angle = np.arctan2(local_target[1], local_target[0])
-
-        if abs(angle) > GK_MIN_ANGLE or np.pi - abs(angle) > GK_MIN_ANGLE:
-            self.drone.ctrl.steer = 1 if angle > 0 else -1
-
-        distance = abs(local_target[0])
+    def run(self, hive):
+        """Runs the controller
         
-        if abs(angle) > GK_BACK_ANGLE:
-            self.drone.ctrl.throttle = cap(-1 * GK_THROTTLE * distance, -1, 1)
-        else:
-            self.drone.ctrl.throttle = cap(1 * GK_THROTTLE * distance, -1, 1)
+        Arguments:
+            hive {Hivemind} -- The hivemind.
+        """
+        # Increments timer.
+        self.timer += hive.dt
 
-'''
-class LINE_PD_Control:
-    def __init__(self, drone, p0, p1):
-        self.drone = drone
-        self.line = (p0, p1)
 
-    def run(self):
-        line_v = self.line[1]-self.line[0]
-        theta = angle_between_vectors(line_v, self.line[1]-self.drone.pos)
-        distance = np.linalg.norm(self.line[1] - self.drone.pos)
-        print("theta", theta)
-        phi = angle_between_vectors(line_v, self.drone.vel)
-        print("phi", phi)
+class AngleBased(Controller):
+    """Very basic controller which drives towards the target.
 
-        self.drone.ctrl.throttle = 1
-        self.drone.ctrl.steer = cap(LINE_PD_ALPHA * (np.sin(theta) * distance) + LINE_PD_BETA * phi, -1, 1)
+    Inheritance:
+        Controller -- Base controller class. Is inherited from by other controllers.
+    
+    Behaviour:
+        Throttle is always set to 1.
+        If steering, always steers fully, i.e. either -1 or 1.
+        Boosts when angle to target is below a certain threshold.
+        Drifts if the angle to target is too large.
 
-        local_target = local(self.drone.orient_m, self.drone.pos, self.line[1])
+    Attributes:
+        MIN_ANGLE -- Smallest angle at which it will steer.
+        BOOST_ANGLE -- Boosting angle threshold.
+        DRIFT_ANGLE -- Angle beyond which it will use handbrake.
+    """
+    def __init__(self):
+        super().__init__()
+        self.MIN_ANGLE = 0.1
+        self.BOOST_ANGLE = 0.3
+        self.DRIFT_ANGLE = 1.6
+
+    def run(self, hive, drone, target):
+        """Runs the controller.
+        
+        Arguments:
+            hive {Hivemind} -- The hivemind.
+            drone {Drone} -- Drone being controlled.
+            target {np.ndarray} -- World coordinates of the point to drive towards.
+        """
+        # Calculates angle to target.
+        local_target = local(drone.orient_m, drone.pos, target)
         angle = np.arctan2(local_target[1], local_target[0])
 
-        if abs(angle) < LINE_PD_BOOST_ANGLE:
-            self.drone.ctrl.boost = True
-'''
+        # Creates controller inputs.
+        if abs(angle) > self.MIN_ANGLE:
+            drone.ctrl.steer = 1 if angle > 0 else -1
 
-# TODO Fix LINE_PD
-# https://www.geogebra.org/m/dpq2hw53
+        if abs(angle) < self.BOOST_ANGLE:
+            drone.ctrl.boost = True
+
+        if abs(angle) > self.DRIFT_ANGLE:
+            drone.ctrl.handbrake = True
+
+        drone.ctrl.throttle = 1
+
+        #super().run(hive) # Not needed here since this does not require a timer.
 
 
-# TODO Add Goose's nice dribble/shooting controller.
+class TargetShot(AngleBased):
+    """Simple shooting / dribbling controller.
 
+    Credits to GooseFairy for the algorithm.
+    Creates a target to drive towards by offsetting from the ball opposite
+    as well as perpendicular to the wanted hit direction.
+    
+    Inheritance:
+        AngleBased -- Very basic controller which drives towards the target.
 
-class Dodge:
-    def __init__(self, drone, direction):
-        self.drone = drone
-        self.direction = normalise(direction)
+    Attributes:
+        PERP_DIST_COEFF {float} -- The perpendicular offset length (as a multiple of distance between the drone and ball)
+        DIRECT_DIST_COEFF {float} -- In hit direction offest length (as a multiple of distance between the drone and ball)
+    """
+    def __init__(self):
+        super().__init__()
+        self.PERP_DIST_COEFF = 1/6
+        self.DIRECT_DIST_COEFF = 1/2
 
-    def run(self, timer):
-        self.drone.ctrl.boost + False
-
-        if timer <= DG_1_JUMP_DURATION:
-            self.drone.ctrl.jump = True
+    def run(self, hive, drone, target):
+        """Runs the controller.
         
-        if timer >= DG_1_JUMP_DURATION + DG_2_JUMP_DELAY:
-            self.drone.ctrl.jump = True
-            self.drone.ctrl.pitch = -self.direction[0]
-            self.drone.ctrl.paw = self.direction[1]
+        Arguments:
+            hive {Hivemind} -- The hivemind.
+            drone {Drone} -- Drone being controlled.
+            target {np.ndarray} -- World coordinates of where we want to hit the ball.
+        """
+        # Calculate drone's distance to ball.
+        distance = np.linalg.norm(hive.ball.pos - drone.pos)
 
-        if timer >= DG_1_JUMP_DURATION + DG_2_JUMP_DELAY + DG_2_JUMP_DURATION:
-            self.drone.controller = None
+        # Find directions based on where we want to hit the ball.
+        direction_to_hit = normalise(target - hive.ball.pos)
+        perpendicular_to_hit = np.cross(direction_to_hit, a3l([0,0,1]))
+
+        # Calculating component lengths and multiplying with direction.
+        perpendicular_component = perpendicular_to_hit * cap(np.dot(perpendicular_to_hit, hive.ball.pos), -distance * self.PERP_DIST_COEFF, distance * self.PERP_DIST_COEFF)
+        in_direction_component = -direction_to_hit * distance * self.DIRECT_DIST_COEFF
+
+        # Combine components to get a drive target.
+        drive_target = hive.ball.pos + in_direction_component + perpendicular_component
+
+        super().run(hive, drone, drive_target)
+
+
+class Dodge(Controller):
+    # TODO Add a docstring to Dodge
+    def __init__(self):
+        super().__init__()
+        self.FST_JUMP_DURATION = 0.1
+        self.SND_JUMP_DELAY = 0.05
+        self.SND_JUMP_DURATION = 2 - self.FST_JUMP_DURATION - self.SND_JUMP_DELAY
+        
+    def run(self, hive, drone, target):
+        # TODO Docstring for run() and comments.
+        direction = normalise(target)
+
+        if self.timer <= self.FST_JUMP_DURATION:
+            drone.ctrl.jump = True
+        
+        if self.timer >= self.FST_JUMP_DURATION + self.SND_JUMP_DELAY:
+            drone.ctrl.jump = True
+            drone.ctrl.pitch = -direction[0]
+            drone.ctrl.paw = direction[1]
+
+        if self.timer >= self.FST_JUMP_DURATION + self.SND_JUMP_DELAY + self.SND_JUMP_DURATION:
+            drone.controller = None
+
+        drone.ctrl.boost = False
+
+        super().run(hive)
+
+# TODO Half flips and diagonal dodging
+# https://www.youtube.com/watch?v=pX950bhGhJE

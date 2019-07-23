@@ -75,6 +75,8 @@ class Hivemind(BotHelperProcess):
         data.setup(self, packet, field_info, self.running_indices)
 
         self.ball.predict = BallPrediction()
+        # https://github.com/RLBot/RLBotPythonExample/wiki/Ball-Path-Prediction
+
 
         # MAIN LOOP:
         while True:
@@ -91,7 +93,7 @@ class Hivemind(BotHelperProcess):
             brain.plan(self)
 
             # Rendering.
-            self.render_debug()
+            render_debug(self.game_interface.renderer, self, drone)
 
             # For each drone under the hivemind's control, do something.
             for drone in self.drones:
@@ -102,12 +104,9 @@ class Hivemind(BotHelperProcess):
                 # Role execution.
                 if drone.role is not None:
                     drone.role.execute(self, drone)
-                        
-                    # Rendering role names above drones.
-                    above = drone.pos + a3l([0,0,100])
-                    self.game_interface.renderer.begin_rendering("role" + str(drone.index))
-                    self.game_interface.renderer.draw_string_3d(above, 1, 1, drone.role.name, self.game_interface.renderer.cyan())
-                    self.game_interface.renderer.end_rendering()
+                    
+                    render_role(self.game_interface.renderer, self, drone)
+                    
                         
 
                 # Send the controls to the bots.
@@ -116,16 +115,28 @@ class Hivemind(BotHelperProcess):
             # Rate limit sleep.
             rate_limit.acquire()
 
-    def render_debug(self):
-        # Rendering Ball prediction.
-        locations = [step.physics.location for step in self.ball.predict.slices]
-        self.game_interface.renderer.begin_rendering('ball prediction')
-        self.game_interface.renderer.draw_polyline_3d(locations, self.game_interface.renderer.pink())
-        self.game_interface.renderer.end_rendering()
+def render_debug(renderer, hive, drone):
+    # TODO Add Docstring
+    # Rendering Ball prediction.
+    locations = [step.physics.location for step in hive.ball.predict.slices]
+    renderer.begin_rendering('ball prediction')
+    renderer.draw_polyline_3d(locations, renderer.pink())
+    renderer.end_rendering()
 
-        # Rendering naive prediction
-        self.game_interface.renderer.begin_rendering('opponent prediction')
-        for opponent in self.opponents:
-            self.game_interface.renderer.draw_polyline_3d(opponent.predict, self.game_interface.renderer.blue())
-        self.game_interface.renderer.end_rendering()
+    # Rendering naive prediction
+    # FIXME Once naive prediction is correctly implemented.
+    '''
+    self.game_interface.renderer.begin_rendering('opponent prediction')
+    for opponent in hive.opponents:
+        renderer.draw_polyline_3d(opponent.predict, renderer.blue())
+    renderer.end_rendering()
+    '''
+
+def render_role(renderer, hive, drone):
+    # TODO Add Docstring
+    # Rendering role names above drones.
+    above = drone.pos + a3l([0,0,100])
+    renderer.begin_rendering("role" + str(hive.team) + str(drone.index))
+    renderer.draw_string_3d(above, 1, 1, drone.role.name, renderer.cyan())
+    renderer.end_rendering()
 
