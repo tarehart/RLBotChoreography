@@ -1,2 +1,3 @@
 # Calculator
-This is a bot for Rocket League that will communicate with other versions of itself. Still working on how to do that though...
+A rework of Calculator. Shares almost no code with the original Calculator.
+This bot is no longer being worked on, but part of it have been used to make HiveBot.
