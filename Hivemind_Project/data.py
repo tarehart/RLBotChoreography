@@ -133,7 +133,7 @@ def process(hive, packet):
 
     # Processing Boostpads.
     hive.active_pads = []
-    for pad in hive.l_pads + hive.s_pads
+    for pad in hive.l_pads + hive.s_pads:
         pad.active = packet.game_boosts[pad.index].is_active
         pad.timer = packet.game_boosts[pad.index].timer
         if pad.active == True:

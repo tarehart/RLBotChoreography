@@ -100,19 +100,7 @@ class Drone(Car):
 
 # -----------------------------------------------------------
 
-# FUNCTIONS:
-
-def team_sign(team : int) -> int:
-    """Gives the sign for a calculation based on team.
-    
-    Arguments:
-        team {int} -- 0 if Blue, 1 if Orange.
-    
-    Returns:
-        int -- 1 if Blue, -1 if Orange
-    """
-    return 1 if team == 0 else -1
-
+# FUNCTIONS FOR CONVERTION TO NUMPY ARRAYS:
 
 def a3l(L : list) -> np.ndarray:
     """Converts list to numpy array.
@@ -150,6 +138,10 @@ def a3v(V : Vector3) -> np.ndarray:
     return np.array([V.x, V.y, V.z])
 
 
+# -----------------------------------------------------------
+
+# USEFUL UTILITY FUNCTIONS:
+
 def normalise(V : np.ndarray) -> np.ndarray:
     """Normalises a vector.
     
@@ -164,6 +156,21 @@ def normalise(V : np.ndarray) -> np.ndarray:
         return V / magnitude
     else:
         return V
+
+
+def angle_between_vectors(v1 : np.ndarray, v2 : np.ndarray) -> float:
+    """Returns the angle in radians between vectors v1 and v2.
+    
+    Arguments:
+        v1 {np.ndarray} -- First vector.
+        v2 {np.ndarray} -- Second vector
+    
+    Returns:
+        float -- Positive acute angle between the vectors in radians.
+    """
+    v1_u = normalise(v1)
+    v2_u = normalise(v2)
+    return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
 
 
 def cap(value : float, minimum : float, maximum : float) -> float:
@@ -184,6 +191,9 @@ def cap(value : float, minimum : float, maximum : float) -> float:
     else:
         return value
 
+# -----------------------------------------------------------
+
+# FUNCTIONS FOR CONVERTING BETWEEN WORLD AND LOCAL COORDINATES:
 
 def orient_matrix(R : np.ndarray) -> np.ndarray:
     """Converts from Euler angles to an orientation matrix.
@@ -252,6 +262,21 @@ def world(A : np.ndarray, p0 : np.ndarray, p1 : np.ndarray) -> np.ndarray:
         np.ndarray -- World x, y, and z coordinates.
     """
     return p0 + np.dot(A, p1)
+
+# -----------------------------------------------------------
+
+# ROCKET LEAGUE SPECIFIC FUNCTIONS:
+
+def team_sign(team : int) -> int:
+    """Gives the sign for a calculation based on team.
+    
+    Arguments:
+        team {int} -- 0 if Blue, 1 if Orange.
+    
+    Returns:
+        int -- 1 if Blue, -1 if Orange
+    """
+    return 1 if team == 0 else -1
     
 
 def turn_r(v : np.ndarray) -> float:
@@ -267,8 +292,23 @@ def turn_r(v : np.ndarray) -> float:
     return -6.901E-11 * s**4 + 2.1815E-07 * s**3 - 5.4437E-06 * s**2 + 0.12496671 * s + 157
 
 
-def angle_between_vectors(v1 : np.ndarray, v2 : np.ndarray) -> float:
-    """Returns the angle in radians between vectors v1 and v2."""
-    v1_u = normalise(v1)
-    v2_u = normalise(v2)
-    return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
+def naive_predict(pos : np.ndarray, vel : np.ndarray, seconds : float, n : int) -> list:
+    """Returns a list of tuples of time and position using a naive prediction method, i.e. continues moving at current velocity.
+    
+    Arguments:
+        pos {np.ndarray} -- Starting position.
+        vel {np.ndarray} -- Current velocity.
+        seconds {float} -- Number of seconds to predict for.
+        n {int} -- How many predictions to make.
+    
+    Returns:
+        list -- List of tuples of time and predicted position at that time.
+    """
+    prediction = []
+    step = seconds / n
+
+    for i in range(n+1):
+        t = step*i
+        prediction.append((t, pos+t*vel))
+
+    return prediction
