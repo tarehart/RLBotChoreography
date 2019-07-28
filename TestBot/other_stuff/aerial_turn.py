@@ -1,3 +1,6 @@
+import numpy as np
+from utils import a3l, cap
+
 omega_max : float= 5.5
 T_r : float = -36.07956616966136 # Torque coefficient for roll.
 T_p : float = -12.14599781908070 # Torque coefficient for pitch.
@@ -7,9 +10,9 @@ D_p : float = -2.798194258050845 # Drag coefficient for pitch.
 D_y : float = -1.886491900437232 # Drag coefficient for yaw.
 
 class state:
-    def __init__(self):
-        self.theta = np.identity(3)
-        self.omega = np.zeros(3)
+    def __init__(self, omega = np.zeros(3), theta = np.identity(3)):
+        self.omega = omega
+        self.theta = theta
 
 def aerial_control_predict(current : state, roll : float, pitch : float, yaw : float, dt : float):
 
@@ -80,6 +83,7 @@ def aerial_input_generate(omega_start : np.ndarray, omega_end : np.ndarray, thet
     return u
 
 
+# TODO Make this work, and test it.
 class AerialTurn_Control:
     def __init__(self, agent, orientation):
         self.agent = agent
@@ -87,8 +91,6 @@ class AerialTurn_Control:
 
     def run(self):
         pass
-
-
 
     def render(self, s):
         s.renderer.begin_rendering('AieralTurn')
