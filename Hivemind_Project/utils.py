@@ -31,6 +31,25 @@ class Car:
         turn_r {float} -- Turn radius.
         predict {dict} -- Predicted movement.
     """
+    __slots__ = [
+        'index',
+        'pos',
+        'rot',
+        'vel',
+        'ang_vel',
+        'dead',
+        'wheel_c',
+        'sonic',
+        'jumped',
+        'd_jumped',
+        'name',
+        'team',
+        'boost',
+        'orient_m',
+        'turn_r',
+        'predict'   
+    ]
+
     def __init__(self, index : int, team : int, name : str):
         self.index      : int           = index
         self.pos        : np.ndarray    = np.zeros(3)
@@ -60,6 +79,14 @@ class Ball:
         ang_vel {np.ndarray} -- Angular velocity (x, y, z). Chip's omega.
         predict {dict} -- Ball prediction.
     """
+    __slots__ = [
+        'pos',
+        'rot',
+        'vel',
+        'ang_vel',
+        'predict'
+    ]
+
     def __init__(self):
         self.pos        : np.ndarray    = np.zeros(3)
         self.rot        : np.ndarray    = np.zeros(3)
@@ -76,6 +103,13 @@ class BoostPad:
         active {bool} -- Whether the boost pad is active and can be collected.
         timer {float} -- How long until the boost pad is active again.
     """
+    __slots__ = [
+        'index',
+        'pos',
+        'active',
+        'timer'
+    ]
+
     def __init__(self, index : int, pos : np.ndarray):
         self.index      : int           = index
         self.pos        : np.ndarray    = pos
@@ -93,6 +127,11 @@ class Drone(Car):
         role {Role} -- The drone's role in a strategy.
         controller {Controller} -- The drone's controller generating inputs. 
     """
+    __slots__ = [
+        'role',
+        'controller'
+    ]
+
     def __init__(self, index : int, team : int, name : str):
         super().__init__(index, team, name)
         self.role       = None
