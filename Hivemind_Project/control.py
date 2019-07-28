@@ -45,9 +45,9 @@ class AngleBased(Controller):
         Drifts if the angle to target is too large.
 
     Attributes:
-        MIN_ANGLE -- Smallest angle at which it will steer.
-        BOOST_ANGLE -- Boosting angle threshold.
-        DRIFT_ANGLE -- Angle beyond which it will use handbrake.
+        MIN_ANGLE {float} -- Smallest angle at which it will steer.
+        BOOST_ANGLE {float} -- Boosting angle threshold.
+        DRIFT_ANGLE {float} -- Angle beyond which it will use handbrake.
     """
     def __init__(self):
         super().__init__()
@@ -127,32 +127,61 @@ class TargetShot(AngleBased):
 
 
 class Dodge(Controller):
-    # TODO Add a docstring to Dodge
+    """Simple dodge controller. Dodges towards a target.
+    
+    Inheritance:
+        Controller -- Base controller class. Is inherited from by other controllers.
+
+    Behaviour:
+        Jumps, waits, dodges in the direction of the target, waits, expires.
+
+    Attributes:
+        FST_JUMP_DURATION {float} -- The duration of the first jump.
+        SND_JUMP_DELAY {float} -- The delay between the first and second jump.
+        SND_JUMP_DURATION {float} -- The duration of the dodge after the second jump.
+    """
     def __init__(self):
         super().__init__()
         self.FST_JUMP_DURATION = 0.1
         self.SND_JUMP_DELAY = 0.05
-        self.SND_JUMP_DURATION = 2 - self.FST_JUMP_DURATION - self.SND_JUMP_DELAY
+        self.SND_JUMP_DURATION = 1.5 - self.FST_JUMP_DURATION - self.SND_JUMP_DELAY
         
     def run(self, hive, drone, target):
-        # TODO Docstring for run() and comments.
-
+        """Runs the controller.
+        
+        Arguments:
+            hive {Hivemind} -- The hivemind.
+            drone {Drone} -- Drone being controlled.
+            target {np.ndarray} -- World coordinates of where to dodge towards.
+        """
+        # Calculates local target and direction.
         local_target = local(drone.orient_m, drone.pos, target)
         direction = normalise(local_target)
 
+        # First jump
         if self.timer <= self.FST_JUMP_DURATION:
             drone.ctrl.jump = True
         
+        # Second jump, i.e. dodge.
         if self.timer >= self.FST_JUMP_DURATION + self.SND_JUMP_DELAY:
             drone.ctrl.jump = True
             drone.ctrl.pitch = -direction[0]
             drone.ctrl.paw = direction[1]
 
+        # Expiration of the controller.
         if self.timer >= self.FST_JUMP_DURATION + self.SND_JUMP_DELAY + self.SND_JUMP_DURATION:
             drone.controller = None
 
         super().run(hive)
 
 
-# TODO Half flips and diagonal dodging
-# https://www.youtube.com/watch?v=pX950bhGhJE
+# TODO
+# -> Half-flips
+# -> Diagonal dodging -- https://www.youtube.com/watch?v=pX950bhGhJE
+# -> PID Controller
+# -> Aerial Turn
+# -> Aerials (High / Low)
+# -> Powershots
+# -> Ball carry
+# -> Flicks
+# -> Drifts
