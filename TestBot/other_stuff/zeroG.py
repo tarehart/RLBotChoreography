@@ -46,4 +46,9 @@ def microgravity(agent, packet):
 
         # Uses state setting to set the game state.
         game_state = GameState(ball=ball_state, cars=car_states)
+        # It doesn't hurt and apparently helps.
+        agent.set_game_state(game_state)
+        agent.set_game_state(game_state)
+        agent.set_game_state(game_state)
+        agent.set_game_state(game_state)
         agent.set_game_state(game_state)
