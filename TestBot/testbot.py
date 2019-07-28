@@ -5,9 +5,6 @@ from rlbot.utils.game_state_util import GameState, BallState, CarState, Physics,
 import numpy as np
 from utils import Car, a3l, a3r, a3v, orient_matrix, local, world, angle_between_vectors
 
-from tempfile import TemporaryFile
-outfile = TemporaryFile()
-
 class TestBot(BaseAgent):
 
     def initialize_agent(self):
