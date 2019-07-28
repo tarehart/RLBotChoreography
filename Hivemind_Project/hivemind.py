@@ -21,9 +21,11 @@ from utils import a3l, world, local
 # Other imports.
 import queue
 import time
+import random
 
 
 class Hivemind(BotHelperProcess):
+    # TODO Maybe use __slots__ for better performance?
 
     def __init__(self, agent_metadata_queue, quit_event, options):
         super().__init__(agent_metadata_queue, quit_event, options)
@@ -46,8 +48,18 @@ class Hivemind(BotHelperProcess):
         """Runs once, sets up the hivemind and its agents."""
         # Prints stuff into the console.
         self.logger.info("Hivemind A C T I V A T E D")
-        self.logger.info("Breaking the meta")
-        self.logger.info("Welcoming r0bbi3")
+        message = random.choice([
+            "Breaking the meta",
+            "Welcoming r0bbi3",
+            "Annoying chip by reinventing the wheel",
+            "Actually texting her",
+            "Banning anime",
+            "Killing that guy",
+            "Trying to pronounce jeroen",
+            "Getting banned by Redox",
+            "Becomind a mod",
+        ])
+        self.logger.info(message)
         
         # Loads game interface.
         self.game_interface.load_interface()
@@ -93,7 +105,7 @@ class Hivemind(BotHelperProcess):
             brain.plan(self)
 
             # Rendering.
-            render_debug(self.game_interface.renderer, self, drone)
+            self.render_debug(self.game_interface.renderer)
 
             # For each drone under the hivemind's control, do something.
             for drone in self.drones:
@@ -105,7 +117,7 @@ class Hivemind(BotHelperProcess):
                 if drone.role is not None:
                     drone.role.execute(self, drone)
                     
-                    render_role(self.game_interface.renderer, self, drone)
+                    self.render_role(self.game_interface.renderer, drone)
                     
                         
 
@@ -115,28 +127,32 @@ class Hivemind(BotHelperProcess):
             # Rate limit sleep.
             rate_limit.acquire()
 
-def render_debug(renderer, hive, drone):
-    # TODO Add Docstring
-    # Rendering Ball prediction.
-    locations = [step.physics.location for step in hive.ball.predict.slices]
-    renderer.begin_rendering('ball prediction')
-    renderer.draw_polyline_3d(locations, renderer.pink())
-    renderer.end_rendering()
 
-    # Rendering naive prediction
-    # FIXME Once naive prediction is correctly implemented.
-    '''
-    self.game_interface.renderer.begin_rendering('opponent prediction')
-    for opponent in hive.opponents:
-    renderer.draw_polyline_3d(opponent.predict, renderer.blue())
-    renderer.end_rendering()
-    '''
+    def render_debug(hive, rndr):
+        """Debug rendering for all manner of things.
+        
+        Arguments:
+            hive {Hivemind} -- The hivemind.
+            rndr {?} -- The renderer.
+        """
+        # Rendering Ball prediction.
+        locations = [step.physics.location for step in hive.ball.predict.slices]
+        rndr.begin_rendering('ball prediction')
+        rndr.draw_polyline_3d(locations, rndr.pink())
+        rndr.end_rendering()
 
-def render_role(renderer, hive, drone):
-    # TODO Add Docstring
-    # Rendering role names above drones.
-    above = drone.pos + a3l([0,0,100])
-    renderer.begin_rendering("role" + str(hive.team) + str(drone.index))
-    renderer.draw_string_3d(above, 1, 1, drone.role.name, renderer.cyan())
-    renderer.end_rendering()
+
+    def render_role(hive, rndr, drone):
+        """Renders roles above the drones.
+        
+        Arguments:
+            hive {Hivemind} -- The hivemind.
+            rndr {?} -- The renderer.
+            drone {Drone} -- The drone who's role is being rendered.
+        """
+        # Rendering role names above drones.
+        above = drone.pos + a3l([0,0,100])
+        rndr.begin_rendering(f'role_{hive.team}_{drone.index}')
+        rndr.draw_string_3d(above, 1, 1, drone.role.name, rndr.cyan())
+        rndr.end_rendering()
 

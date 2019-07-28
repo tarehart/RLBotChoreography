@@ -75,11 +75,13 @@ class Demo(Role):
             if self.marked_for_destruction is None:
                 # Mark the closest opponent to ball.
                 self.marked_for_destruction = sorted(hive.opponents, key=lambda car: np.linalg.norm(car.pos - hive.ball.pos))[0]
+
             elif self.marked_for_destruction.dead:
                 self.marked_for_destruction = None
 
             if drone.controller is None:
                 drone.controller = AngleBased()
+
             else:
                 drone.controller.run(hive, drone, self.marked_for_destruction.pos)
 
@@ -89,7 +91,7 @@ class Demo(Role):
 class Attacker(Role):
     def __init__(self):
         super().__init__("Attacker")
-        self.KO_DODGE_TIME = 0.35
+        self.KO_DODGE_TIME = 0.5
         self.KO_PAD_TIME = 0.1
 
     def execute(self, hive, drone):

@@ -23,7 +23,7 @@ def setup(hive, packet, field_info, indices):
     hive.gravity    = - 650.0
 
     # Hivemind attributes
-    hive.team       = packet.game_cars[indices[0]].team
+    hive.team       = packet.game_cars[indices.copy().pop()].team
     hive.strategy   = None
 
     # Creates Car objects for each car.
@@ -33,7 +33,7 @@ def setup(hive, packet, field_info, indices):
     for index in range(packet.num_cars):
         name = packet.game_cars[index].name
         if index in indices:
-            hive.drone.append(Drone(index, hive.team, name))
+            hive.drones.append(Drone(index, hive.team, name))
         elif packet.game_cars[index].team == hive.team:
             hive.teammates.append(Car(index, hive.team, name))
         else:

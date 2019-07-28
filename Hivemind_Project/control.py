@@ -51,9 +51,9 @@ class AngleBased(Controller):
     """
     def __init__(self):
         super().__init__()
-        self.MIN_ANGLE = 0.1
+        self.MIN_ANGLE = 0.05
         self.BOOST_ANGLE = 0.3
-        self.DRIFT_ANGLE = 1.6
+        self.DRIFT_ANGLE = 1.8
 
     def run(self, hive, drone, target):
         """Runs the controller.
@@ -143,7 +143,7 @@ class Dodge(Controller):
     def __init__(self):
         super().__init__()
         self.FST_JUMP_DURATION = 0.1
-        self.SND_JUMP_DELAY = 0.05
+        self.SND_JUMP_DELAY = 0.1
         self.SND_JUMP_DURATION = 1.5 - self.FST_JUMP_DURATION - self.SND_JUMP_DELAY
         
     def run(self, hive, drone, target):

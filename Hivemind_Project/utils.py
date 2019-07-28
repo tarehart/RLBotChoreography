@@ -124,16 +124,21 @@ class Drone(Car):
         Car -- Houses the processed data from the packet.
 
     Attributes:
+        ctrl {PlayerInput} -- The controller inputs for the drone.
         role {Role} -- The drone's role in a strategy.
         controller {Controller} -- The drone's controller generating inputs. 
     """
     __slots__ = [
+        'ctrl',
+        'kickoff',
         'role',
         'controller'
     ]
 
     def __init__(self, index : int, team : int, name : str):
         super().__init__(index, team, name)
+        self.ctrl       = None
+        self.kickoff    = None
         self.role       = None
         self.controller = None
 
