@@ -14,6 +14,8 @@ from rlbot.utils.structures.ball_prediction_struct import BallPrediction
 from rlbot.utils.structures.game_interface import GameInterface
 from rlbot.utils.game_state_util import Vector3, Rotator
 
+PI = np.pi
+
 class ExampleHivemind(BotHelperProcess):
 
     # Some terminology:
@@ -94,7 +96,7 @@ class ExampleHivemind(BotHelperProcess):
         self.drones = []
         for index in range(packet.num_cars):
             if index in self.running_indices:
-                self.drones.append(Drone(index))
+                self.drones.append(Drone(index, packet.game_cars[index].team))
 
         self.game_time = 0.0
         self.pinch_target = None
@@ -129,7 +131,6 @@ class ExampleHivemind(BotHelperProcess):
 
 
             # TEAM PINCH CODE:
-            team_pinch_num = 2 # Number of drones to attempt the team pinch.
             # Sorts drones based on distance to ball.
             sorted_drones = sorted(self.drones, key=lambda drone: np.linalg.norm(drone.pos - self.ball.pos))
 
@@ -138,8 +139,8 @@ class ExampleHivemind(BotHelperProcess):
 
             if self.pinch_target is None:
                 # Gets a rough estimate for which target locations are possible.
-                second_closest_drone = sorted_drones[team_pinch_num-1]
-                rough_estimate = np.linalg.norm(self.ball.pos - second_closest_drone.pos) / 1400 + 1
+                second_closest_drone = sorted_drones[1]
+                rough_estimate = np.linalg.norm(self.ball.pos - second_closest_drone.pos) / 1400 + 2
 
                 # Filters out all that are sooner than our rough estimate.
                 valid_targets = [step for step in self.ball_prediction.slices if step.game_seconds > self.game_time + rough_estimate]
@@ -156,7 +157,7 @@ class ExampleHivemind(BotHelperProcess):
 
             else:
                 # Get closest bots to attempt a team pinch.
-                pinch_drones = sorted_drones[:team_pinch_num]
+                pinch_drones = sorted_drones[:2]
                 self.team_pinch(pinch_drones)
 
             # Use this to send the drone inputs to the drones.
@@ -191,29 +192,31 @@ class ExampleHivemind(BotHelperProcess):
 
         self.game_interface.renderer.end_rendering()
 
-    
-    def team_pinch(self, pinch_drones):
-        """Coordinates a team pinch."""
-        error = 0.2
 
-        for drone in pinch_drones:
-            # Calculates the target location in local coordinates.
-            local_target = local(drone.orient_m, drone.pos, self.pinch_target)
+    def team_pinch(self, pinch_drones):
+        # Finds time remaining to pinch.
+        time_remaining = self.pinch_time - self.game_time
+
+        for i, drone in enumerate(pinch_drones):
+            # Finds vector towards goal from pinch target location.
+            vector_to_goal = normalise(goal_pos*team_sign(drone.team)-self.pinch_target)
+            # Finds 2D vector towards goal from pinch target.
+            angle_to_goal = np.arctan2(vector_to_goal[1],vector_to_goal[0])
+            # Angle offset for each bot participating in pinch.
+            angle_offset = 2*PI / (len(pinch_drones) + 1)
+            # Calculating approach vector.
+            approach_angle = angle_to_goal + angle_offset * (i+1)
+            approach_vector = np.array([np.cos(approach_angle), np.sin(approach_angle), 0])
+
+            # Calculate target velocity
+            distance_to_target = np.linalg.norm(self.pinch_target - drone.pos)
+            target_velocity = distance_to_target / time_remaining
+            # Offset target from the pinch target to drive towards.
+            drive_target = self.pinch_target + (approach_vector * distance_to_target/2)
+            # Calculates the pinch location in local coordinates.
+            local_target = local(drone.orient_m, drone.pos, drive_target)
             # Finds 2D angle to target. Positive is clockwise.
             angle = np.arctan2(local_target[1], local_target[0])
-            # Finds estimated time of arrival.
-            ETA = self.game_time + local_target[0] / np.linalg.norm(drone.vel)
-            
-            # If pointing in right-ish direction, control throttle.
-            if abs(angle) < 0.5:
-                drone.ctrl.throttle = 1.0 if ETA > self.pinch_time + error else 0.0
-            # If I'm facing the wrong way, do a little drift.
-            elif abs(angle) > 1.6:
-                drone.ctrl.throttle = 1.0
-                drone.ctrl.handbrake = True
-            # Just throttle if you're a bit wrong.
-            else:
-                drone.ctrl.throttle = 1.0
 
             # Smooths out steering with modified sigmoid funcion.
             def special_sauce(x, a):
@@ -224,14 +227,30 @@ class ExampleHivemind(BotHelperProcess):
             # Calculates steer.
             drone.ctrl.steer = special_sauce(angle, -5)
 
+            # Throttle controller.
+            local_velocity = local(drone.orient_m, a3l([0,0,0]), drone.vel)
+            # If I'm facing the wrong way, do a little drift.
+            if abs(angle) > 1.6:
+                drone.ctrl.throttle = 1.0
+                drone.ctrl.handbrake = True
+            else:
+                drone.ctrl.throttle = 1 if local_velocity[0] < target_velocity else 0.0
+
+            '''
             # Dodge at the very end to pinch the ball.
-            if 0.15 < self.pinch_time - self.game_time < 0.2:
+            if 0.15 < time_remaining < 0.2:
                 drone.ctrl.jump = True
 
             elif 0.0 < self.pinch_time - self.game_time  < 0.1:
                 drone.ctrl.pitch = -1
                 drone.ctrl.jump = True
+            '''
 
+            # Rendering of approach vectors.
+            self.game_interface.renderer.begin_rendering(f'approach vectors {i}')
+            self.game_interface.renderer.draw_line_3d(self.pinch_target, drive_target, self.game_interface.renderer.green())
+            self.game_interface.renderer.end_rendering()
+                
 
 # -----------------------------------------------------------
 
@@ -244,6 +263,7 @@ class Drone:
 
     Attributes:
         index {int} -- The car's index in the packet.
+        team {int} -- 0 if blue, else 1.
         pos {np.ndarray} -- Position vector.
         rot {np.ndarray} -- Rotation (pitch, yaw, roll).
         vel {np.ndarray} -- Velocity vector.
@@ -252,6 +272,7 @@ class Drone:
     """
     __slots__ = [
         'index',
+        'team',
         'pos',
         'rot',
         'vel',
@@ -259,8 +280,9 @@ class Drone:
         'ctrl'  
     ]
 
-    def __init__(self, index : int):
+    def __init__(self, index : int, team : int):
         self.index      : int           = index
+        self.team       : int           = team
         self.pos        : np.ndarray    = np.zeros(3)
         self.rot        : np.ndarray    = np.zeros(3)
         self.vel        : np.ndarray    = np.zeros(3)
@@ -288,6 +310,17 @@ class Ball:
 
 # FUNCTIONS FOR CONVERTION TO NUMPY ARRAYS:
 
+def a3l(L : list) -> np.ndarray:
+    """Converts list to numpy array.
+
+    Arguments:
+        L {list} -- The list to convert containing 3 elemets.
+
+    Returns:
+        np.array -- Numpy array with the same contents as the list.
+    """
+    return np.array([L[0], L[1], L[2]])
+
 def a3r(R : Rotator) -> np.ndarray:
     """Converts rotator to numpy array.
 
@@ -314,6 +347,21 @@ def a3v(V : Vector3) -> np.ndarray:
 # -----------------------------------------------------------
 
 # LINEAR ALGEBRA:
+
+def normalise(V : np.ndarray) -> np.ndarray:
+    """Normalises a vector.
+    
+    Arguments:
+        V {np.ndarray} -- Vector.
+    
+    Returns:
+        np.ndarray -- Normalised vector.
+    """
+    magnitude = np.linalg.norm(V)
+    if magnitude != 0.0:
+        return V / magnitude
+    else:
+        return V
 
 def orient_matrix(R : np.ndarray) -> np.ndarray:
     """Converts from Euler angles to an orientation matrix.
@@ -368,3 +416,18 @@ def local(A : np.ndarray, p0 : np.ndarray, p1 : np.ndarray) -> np.ndarray:
         np.ndarray -- Local x, y, and z coordinates.
     """
     return np.dot(A.T, p1 - p0)
+
+
+def team_sign(team : int) -> int:
+    """Gives the sign for a calculation based on team.
+    
+    Arguments:
+        team {int} -- 0 if Blue, 1 if Orange.
+    
+    Returns:
+        int -- 1 if Blue, -1 if Orange
+    """
+    return 1 if team == 0 else -1
+
+goal_pos = a3l([0,5300,0])
+    
