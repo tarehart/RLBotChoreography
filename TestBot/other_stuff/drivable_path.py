@@ -3,54 +3,31 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 
 def bezier_cubic(p0, p1, p2, p3, n : int):
-    """Returns a position on bezier curve defined by 4 points at t.
-
-    Arguments:
-        p0 {np.array} -- Coordinates of point 0.
-        p1 {np.array} -- Coordinates of point 1.
-        p2 {np.array} -- Coordinates of point 2.
-        p3 {np.array} -- Coordinates of point 3.
-        n {int} -- Number of points on the curve to generate.
-
-    Returns:
-        np.array -- Coordinates on the curve.
-    """
-    p0 = p0.reshape(p0.shape[0],1)
-    p1 = p1.reshape(p1.shape[0],1)
-    p2 = p2.reshape(p2.shape[0],1)
-    p3 = p3.reshape(p3.shape[0],1)
+    p0 = p0[:,np.newaxis]
+    p1 = p1[:,np.newaxis]
+    p2 = p2[:,np.newaxis]
+    p3 = p3[:,np.newaxis]
     t = np.linspace(0.0, 1.0, n)
     path = (1-t)**3*p0 + 3*(1-t)**2*t*p1 + 3*(1-t)*t**2*p2 + t**3*p3
     return path.T
 
-'''
-def OGH(p0, p1, v0, v1, t, t0=0, t1=1):
-    """Optimized geometric Hermite curve."""
-    p0 = p0.reshape(p0.shape[0],1)
-    p1 = p1.reshape(p1.shape[0],1)
-    v0 = v0.reshape(v0.shape[0],1)
-    v1 = v1.reshape(v1.shape[0],1)
-
-    s = (t-t0)/(t1-t0)
-    a0 = (6*np.dot((p1-p0).T,v0)*np.dot(v1.T,v1) - 3*np.dot((p1-p0).T,v1)*np.dot(v0.T,v1)) / ((4*np.dot(v0.T,v0)*np.dot(v1.T,v1) - np.dot(v0.T,v1)*np.dot(v0.T,v1))*(t1-t0))
-    a1 = (3*np.dot((p1-p0).T,v0)*np.dot(v0.T,v1) - 6*np.dot((p1-p0).T,v1)*np.dot(v0.T,v0)) / ((np.dot(v0.T,v1)*np.dot(v0.T,v1) - 4*np.dot(v0.T,v0)*np.dot(v1.T,v1))*(t1-t0))
-    h0 = (2*s+1)*(s-1)*(s-1)
-    h1 = (-2*s+3)*s*s
-    h2 = (1-s)*(1-s)*s
-    h3 = (s-1)*s*s
-
-    plt.plot([p0[0],p1[0]], [p0[1],p1[1]], ':c')
-    plt.plot([p0[0], (p0+v0)[0]], [p0[1], (p0+v0)[1]], '-g')
-    plt.plot([p1[0], (p1+v1)[0]], [p1[1], (p1+v1)[1]], '-g')
-
-    path = h0*p0 + h1*p1 + h2*v0*a0 + h3*v1*a1
-    return path.T
-'''
-
 def get_path_length(path):
     a = path[:-1]
     b = path[1:]
-    return np.sum(np.linalg.norm(b-a,axis=1))
+    diff = b - a
+    return np.einsum('i->', np.sqrt(np.einsum('ij,ij->i',diff,diff)))
+
+def reparam_by_arc_len(path):
+    a = path[:-1]
+    b = path[1:]
+    diff = b - a
+    lengths = np.sqrt(np.einsum('ij,ij->i',diff,diff))
+    working_len = 0
+    result = np.zeros(len(path))
+    for i in range(len(path)-1):
+        working_len += lengths[i]
+        result[i+1] = working_len    
+    return result
 
 def get_curvature(path):
     dx_dt = np.gradient(path[:, 0])
@@ -73,52 +50,82 @@ def max_speed_from_curve(path_k):
     max_s = f(k)
     return max_s 
 
-# TODO Gradient constrain the velocities according to actual possible Rocket League accelerations
-# https://samuelpmish.github.io/notes/RocketLeague/path_analysis/
-# https://samuelpmish.github.io/notes/RocketLeague/ground_control/
+def max_vel_for_dist(vel, dis):
+    v = np.array([0, 1400, 1410, 2300])
+    a = np.array([1600, 160, 0, 0])
+    f = interp1d(v, a)
+    possible_accel = f(vel) + 991.667 # Assuming you have boost.
+    return np.sqrt(vel**2 + possible_accel*dis)
 
-n = 1000
-t = np.linspace(0, 1, n)
+braking_accel = 3500
+def low_vel_for_dist(vel, dis): #going backwards so it's positive
+    return np.sqrt(vel**2 + braking_accel*dis)
 
-
-# OGH
-'''
-p0 = np.array([0,0,0])
-p1 = np.array([1000,0,0])
-v0 = np.array([100,400,0])
-v1 = np.array([400,-100,0])
-
-path0 = OGH(p0, p1, v0, v1, t)
-print('path0:',get_path_length(path0))
-path0_k = get_curvature(path0)
-path0_v = max_speed_from_curve(path0_k)
-'''
-
-# Bezier
 p0 = np.array([0,0,0])
 p1 = np.array([100,-500,0])
 p2 = np.array([400,-500,0])
 p3 = np.array([1000,0,0])
 
-path1 = bezier_cubic(p0, p1, p2, p3, n)
-print('path1:',get_path_length(path1))
-path1_k = get_curvature(path1)
-path1_v = max_speed_from_curve(path1_k)
+n = 10000
 
+path = bezier_cubic(p0, p1, p2, p3, n)
+path_by_arc_len = reparam_by_arc_len(path)
+path_curvature  = get_curvature(path)
+path_velocities = max_speed_from_curve(path_curvature)
+
+# Displacements
+a = path[:-1]
+b = path[1:]
+diff = b - a
+displacements = np.sqrt(np.einsum('ij,ij->i',diff,diff)
+
+# Forward pass.
+current_vel = 500
+f_path_velocities = path_velocities.copy()
+f_path_velocities[0] = current_vel
+for i in range(len(path_velocities)-1):
+    path_vel = path_velocities[i]
+    possible_vel = max_vel_for_dist(current_vel, displacements[i])
+    current_vel = possible_vel if possible_vel < path_vel else path_vel
+    f_path_velocities[i+1] = current_vel
+
+# Backward pass.
+b_path_velocities = f_path_velocities.copy()
+b_path_velocities[0] = current_vel
+reversed_displacements = displacements[::-1]
+reversed_f_path_velocities = f_path_velocities[::-1]
+for i in range(len(f_path_velocities)-1):
+    path_vel = reversed_f_path_velocities[i]
+    possible_vel = low_vel_for_dist(current_vel, reversed_displacements[i])
+    current_vel = path_vel if path_vel <= possible_vel else possible_vel
+    b_path_velocities[i+1] = current_vel
+b_path_velocities = b_path_velocities[::-1]
 
 # Plotting
-plt.subplot(3,1,1)
+plt.rcParams['figure.figsize'] = [10, 20]
+
+plt.subplot(5,1,1)
+plt.plot(path[:,0], path[:,1])
 plt.ylabel('Path')
-#plt.plot(path0[:,0],path0[:,1])
-plt.plot(path1[:,0],path1[:,1])
 
-plt.subplot(3,1,2)
+plt.subplot(5,1,2)
+plt.plot(path_by_arc_len, path_curvature)
+plt.xlabel('Arc length')
 plt.ylabel('Curvature')
-#plt.plot(t,path0_k)
-plt.plot(t,path1_k)
 
-plt.subplot(3,1,3)
-plt.ylabel('Curvature-based velocity')
-#plt.plot(t,path0_v)
-plt.plot(t,path1_v)
+plt.subplot(5,1,3)
+plt.plot(path_by_arc_len, path_velocities)
+plt.xlabel('Arc length')
+plt.ylabel('Velocity')
+
+plt.subplot(5,1,4)
+plt.plot(path_by_arc_len, f_path_velocities)
+plt.xlabel('Arc length')
+plt.ylabel('Velocity after f-pass')
+
+plt.subplot(5,1,5)
+plt.plot(path_by_arc_len, b_path_velocities)
+plt.xlabel('Arc length')
+plt.ylabel('Velocity after b-pass')
+
 plt.show()
