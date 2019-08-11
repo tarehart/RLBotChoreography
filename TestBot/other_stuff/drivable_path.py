@@ -87,17 +87,21 @@ for i in range(len(path_velocities)-1):
 '''
 for i in range(n-1):
     path_vel = path_velocities[i]
+    
     # Homebrewed interpolation
     # m = (y2-y1) / (x2-x1)
     # c = y1 - m*x1
-    if current_vel >= 1410:
-        possible_accel = 0
-    elif current_vel >= 1400:
-        possible_accel = -16*current_vel + 22560
-    elif current_vel >= 0:
-        possible_accel = (-36/35)*current_vel + 1600
+    if current_vel >= 1400:
+        if current_vel >= 1410:
+            possible_accel = 0
+        else:
+            possible_accel = -16*current_vel + 22560
     else:
-        possible_accel = 3500
+        if current_vel >= 0:
+            possible_accel = (-36/35)*current_vel + 1600
+        else:
+            possible_accel = 3500
+    
     possible_accel += 991.667 # Assuming you have boost.
     possible_vel = np.sqrt(current_vel**2 + possible_accel*displacements[i])
     current_vel = possible_vel if possible_vel < path_vel else path_vel
