@@ -21,6 +21,8 @@ class Strategy:
 #   -> Two Goalies, one on each side of goal.
 #   -> Demos surround opponent from multiple sides.
 
+# TODO More specific strategies.
+
 # -----------------------------------------------------------
 
 # KICKOFF POSITIONS:
@@ -53,6 +55,8 @@ goal_pos = a3l([0,-5300,0])
 # -----------------------------------------------------------
 
 # ROLES:
+
+# TODO More specific roles.
 
 class Role:
     def __init__(self, name):

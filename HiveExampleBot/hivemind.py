@@ -60,19 +60,9 @@ class ExampleHivemind(BotHelperProcess):
         self.game_interface.load_interface()
 
         # Wait a moment for all agents to have a chance to start up and send metadata.
-        self.logger.info("Sleeping for 3 seconds; give it a moment.")
+        self.logger.info("Snoozing for 3 seconds; give me a moment.")
         time.sleep(3)
         self.try_receive_agent_metadata()
-        
-        # Runs the game loop where the hivemind will spend the rest of its time.
-        self.game_loop()
-
-            
-    def game_loop(self):
-        """The main game loop. This is where your hivemind code goes."""
-
-        # Setting up rate limiter.
-        rate_limit = rate_limiter.RateLimiter(120)
 
         # This is how you access field info.
         # First create the initialise the object...
@@ -84,10 +74,7 @@ class ExampleHivemind(BotHelperProcess):
         # also updated in the main loop every tick.
         packet = GameTickPacket()
         self.game_interface.update_live_data_packet(packet)
-
-        # Same pattern follows with ball predition.
-        self.ball_prediction = BallPrediction()
-        self.game_interface.update_ball_prediction(self.ball_prediction)
+        # Ball prediction works the same. Check the main loop.
 
         # Create a Ball object for the ball that holds its information.        
         self.ball = Ball()
@@ -98,19 +85,42 @@ class ExampleHivemind(BotHelperProcess):
             if index in self.running_indices:
                 self.drones.append(Drone(index, packet.game_cars[index].team))
 
+        # Other attribute initialisation.
+        self.state = State.SETUP
         self.game_time = 0.0
         self.pinch_target = None
         self.pinch_time = 0.0
+        
+        # Runs the game loop where the hivemind will spend the rest of its time.
+        self.game_loop()
+
+            
+    def game_loop(self):
+        """The main game loop. This is where your hivemind code goes."""
+
+        # Setting up rate limiter.
+        rate_limit = rate_limiter.RateLimiter(120)
+
+        packet = GameTickPacket()
+        ball_prediction = BallPrediction()
+
+        # Nicknames the renderer to shorten code.
+        draw = self.game_interface.renderer
 
         # MAIN LOOP:
         while True:
+
+            # Begins rendering at the start of the code because 
+            # according to dtracers it is not bad practice and makes my life easier.
+            # https://discordapp.com/channels/348658686962696195/446761380654219264/610879527089864737
+            draw.begin_rendering()
 
             # PRE-PROCESSING:
             # Updating the game packet from the game.
             self.game_interface.update_live_data_packet(packet)
 
             # Updates the ball prediction.          
-            self.game_interface.update_ball_prediction(self.ball_prediction)
+            self.game_interface.update_ball_prediction(ball_prediction)
 
             # Processing ball data.
             self.ball.pos = a3v(packet.game_ball.physics.location)
@@ -124,13 +134,107 @@ class ExampleHivemind(BotHelperProcess):
                 drone.orient_m = orient_matrix(drone.rot)
 
                 # Reset ctrl every tick.
+                # PlayerInput is practically identical to SimpleControllerState.
                 drone.ctrl = PlayerInput()
 
             # Game time.
             self.game_time = packet.game_info.seconds_elapsed
 
+            # Example Team Pinches (2 bots only)
+            # There's nothing stopping you from doing it with more ;) Give it a shot!
+            if len(self.drones) == 2:
 
-            # TEAM PINCH CODE:
+                # Sorts the drones left to right.
+                right_to_left_drones = sorted(self.drones, key=lambda drone: drone.pos[0]*team_sign(drone.team))
+                right = right_to_left_drones[0]
+                left = right_to_left_drones[1]
+
+                # Bots get boost and go to wait positions.
+                if self.state == State.SETUP:
+                    # Some guide positions.
+                    right_boost = a3l([-3072.0, -4096.0, 71.1])*team_sign(right.team)
+                    right_wait = a3l([-1792.0, -4184.0, 71.1])*team_sign(right.team)
+                    left_boost = right_boost * a3l([-1,1,1])
+                    left_wait = right_wait * a3l([-1,1,1])
+
+                    # First get boost and then go to wait position.
+                    if right.boost < 100:
+                        right.ctrl = slow_to_pos(right, right_boost)
+                    else:
+                        right.ctrl = slow_to_pos(right, right_wait)
+
+                    if left.boost < 100:
+                        left.ctrl = slow_to_pos(left, left_boost)
+                    else:
+                        left.ctrl = slow_to_pos(left, left_wait)
+
+                    # TODO slow_to_pos. Should slow down as it gets closer.
+
+                    # If both bots are in wait position, switch to WAIT state.
+                    if sum(np.linalg.norm(right.pos-right_boost), np.linalg.norm(left.pos-left_wait)) < 100:
+                        self.state = State.WAIT
+
+                # Bots try to face the ball, waiting for perfect moment to team pinch.
+                elif self.state == State.WAIT:
+
+                    # Filters out all the predictions where the ball is too far off the ground.
+                    filtered_prediction = [[a3v(step.physics.location), step.game_seconds] for step in ball_prediction.slices if step.physics.location.z < 100]
+
+                    self.game_interface.renderer.begin_rendering()
+                    if len(filtered_prediction) > 0:
+                        # Turns the predition into a numpy array for fast vectorized calculations.
+                        filtered_prediction = np.array(filtered_prediction)
+                        # Gets the vectors from the drones to the ball prediction.
+                        right_to_prediction = filtered_prediction[:,0] - right.pos
+                        left_to_prediction = filtered_prediction[:,0] - left.pos
+                        # Calculates the distances.
+                        right_distances = np.sqrt(np.einsum('ij,ij->i',right_to_prediction,right_to_prediction))
+                        left_distances = np.sqrt(np.einsum('ij,ij->i',left_to_prediction,left_to_prediction))
+                        # Filters out the predictions which are too close or too far.
+                        good_distances = (1000 < right_distances < 3000) & (1000 < left_distances < 3000)
+                        good_distance_targets = filtered_prediction[good_distances]
+
+                        if len(good_distance_targets > 0):
+                            # Pessimistic time error.
+                            TIME_ERROR = 0.2
+                            
+                            # Getting the remaining distances after filter.
+                            right_distances = right_distances[good_distances]
+                            left_distances = left_distances[good_distances]
+
+                            # Getting time estimates to go that distance. (Assuming boosting, and going in a straight line.)
+                            right_times = right_distances**0.55 / 41.53
+                            right_times[right_distances>2177.25] = 1/2300 * right_distances[right_distances>2177.25] + 0.70337
+                            right_times += self.game_time - TIME_ERROR
+                            
+                            left_times = left_distances**0.55 / 41.53
+                            left_times[left_distances>2177.25] = 1/2300 * left_distances[left_distances>2177.25] + 0.70337
+                            left_times += self.game_time - TIME_ERROR
+
+                            # Filters out the predictions which we can't get to.
+                            good_times = (good_distance_targets[:1] > right_times) & (good_distance_targets[:1] > left_times)
+                            valid_targets = good_distance_targets[good_times]
+
+                            if len(valid_targets) > 0:
+                                # TODO Pick a target.
+                                # TODO set state to pinch.
+
+
+                        # Each drone should try to face the ball.
+                        for drone in self.drones:
+                            drone.ctrl = face_pos(drone, ball.pos)
+
+                elif self.state == State.PINCH:
+                    # TODO Face target
+                    # Wait until time to go. Use time estimate.
+            
+            else:
+                draw.draw_string_2d(10, 10, 2, 2, 'This example version has only been coded for 2 HiveBots.')
+                
+                            
+                
+
+            '''
             # Sorts drones based on distance to ball.
             sorted_drones = sorted(self.drones, key=lambda drone: np.linalg.norm(drone.pos - self.ball.pos))
 
@@ -140,7 +244,7 @@ class ExampleHivemind(BotHelperProcess):
             if self.pinch_target is None:
                 # Gets a rough estimate for which target locations are possible.
                 second_closest_drone = sorted_drones[1]
-                rough_estimate = np.linalg.norm(self.ball.pos - second_closest_drone.pos) / 1400 + 2
+                rough_estimate = np.linalg.norm(self.ball.pos - second_closest_drone.pos) / 1400
 
                 # Filters out all that are sooner than our rough estimate.
                 valid_targets = [step for step in self.ball_prediction.slices if step.game_seconds > self.game_time + rough_estimate]
@@ -159,12 +263,16 @@ class ExampleHivemind(BotHelperProcess):
                 # Get closest bots to attempt a team pinch.
                 pinch_drones = sorted_drones[:2]
                 self.team_pinch(pinch_drones)
+            '''
 
             # Use this to send the drone inputs to the drones.
             for drone in self.drones:
                 self.game_interface.update_player_input(drone.ctrl, drone.index)
 
-            # Some debug rendering.
+            # Ending rendering before starting the example rendering.
+            draw.end_rendering()
+
+            # Some example rendering.
             self.draw_debug()
 
 
@@ -194,10 +302,15 @@ class ExampleHivemind(BotHelperProcess):
 
 
     def team_pinch(self, pinch_drones):
+        '''
         # Finds time remaining to pinch.
         time_remaining = self.pinch_time - self.game_time
 
-        for i, drone in enumerate(pinch_drones):
+        # Sorts the pinch drones right to left 
+        # so the right bot goes from the right and the left goes from the left.
+        right_to_left_drones = sorted(pinch_drones, key=lambda drone: drone.pos[0]*team_sign(drone.team))
+
+        for i, drone in enumerate(right_to_left_drones):
             # Finds vector towards goal from pinch target location.
             vector_to_goal = normalise(goal_pos*team_sign(drone.team)-self.pinch_target)
             # Finds 2D vector towards goal from pinch target.
@@ -230,33 +343,70 @@ class ExampleHivemind(BotHelperProcess):
             # Throttle controller.
             local_velocity = local(drone.orient_m, a3l([0,0,0]), drone.vel)
             # If I'm facing the wrong way, do a little drift.
-            if abs(angle) > 1.6:
+            if abs(angle) > 2:
                 drone.ctrl.throttle = 1.0
                 drone.ctrl.handbrake = True
             else:
                 drone.ctrl.throttle = 1 if local_velocity[0] < target_velocity else 0.0
 
-            '''
+            # Rendering of approach vectors.
+            self.game_interface.renderer.begin_rendering(f'approach vectors {i}')
+            self.game_interface.renderer.draw_line_3d(self.pinch_target, drive_target, self.game_interface.renderer.green())
+            self.game_interface.renderer.end_rendering()
+        '''
+        '''
+        error = 0.2
+
+        for drone in pinch_drones:
+            # Calculates the target location in local coordinates.
+            local_target = local(drone.orient_m, drone.pos, self.pinch_target)
+            # Finds 2D angle to target. Positive is clockwise.
+            angle = np.arctan2(local_target[1], local_target[0])
+            # Finds estimated time of arrival.
+            ETA = self.game_time + local_target[0] / np.linalg.norm(drone.vel)
+
+            # If pointing in right-ish direction, control throttle.
+            if abs(angle) < 0.5:
+                drone.ctrl.throttle = 1.0 if ETA > self.pinch_time + error else 0.0
+            # If I'm facing the wrong way, do a little drift.
+            elif abs(angle) > 1.6:
+                drone.ctrl.throttle = 1.0
+                drone.ctrl.handbrake = True
+            # Just throttle if you're a bit wrong.
+            else:
+                drone.ctrl.throttle = 1.0
+
+            # Smooths out steering with modified sigmoid funcion.
+            def special_sauce(x, a):
+                """Modified sigmoid."""
+                # Graph: https://www.geogebra.org/m/udfp2zcy
+                return 2 / (1 + np.exp(a*x)) - 1
+
+            # Calculates steer.
+            drone.ctrl.steer = special_sauce(angle, -5)
+
             # Dodge at the very end to pinch the ball.
-            if 0.15 < time_remaining < 0.2:
+            if 0.15 < self.pinch_time - self.game_time < 0.2:
                 drone.ctrl.jump = True
 
             elif 0.0 < self.pinch_time - self.game_time  < 0.1:
                 drone.ctrl.pitch = -1
                 drone.ctrl.jump = True
-            '''
+        '''
 
-            # Rendering of approach vectors.
-            self.game_interface.renderer.begin_rendering(f'approach vectors {i}')
-            self.game_interface.renderer.draw_line_3d(self.pinch_target, drive_target, self.game_interface.renderer.green())
-            self.game_interface.renderer.end_rendering()
+def slow_to_pos(drone, position):
+    pass
+
+def turn_to_pos(drone, position):
+    pass
+
                 
 
 # -----------------------------------------------------------
 
 # UTILS:
 # I copied over some of my HiveBot utils.
-# Feel free to check out the full version if you'd like to use them.
+# Feel free to check out the full utilities file of HiveBot.
 
 class Drone:
     """Houses the processed data from the packet for the drones.
@@ -306,6 +456,15 @@ class Ball:
         self.pos        : np.ndarray    = np.zeros(3)
         self.vel        : np.ndarray    = np.zeros(3)
 
+
+# An example state enum.
+# Since you are using a hivemind it's as if 
+# all of your bots knew each other's state.
+class State:
+    SETUP = 0
+    WAIT = 1
+    PINCH = 2
+    
 # -----------------------------------------------------------
 
 # FUNCTIONS FOR CONVERTION TO NUMPY ARRAYS:

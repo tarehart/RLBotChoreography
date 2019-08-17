@@ -185,3 +185,57 @@ class Dodge(Controller):
 # -> Ball carry
 # -> Flicks
 # -> Drifts
+
+
+
+#######
+'''
+    def snake(self, distance):
+        """Makes the drones go in a line towards the ball"""
+
+        # First drone follows the ball.
+        target_speed = np.linalg.norm(self.ball.vel) + np.linalg.norm(self.ball.pos - self.drones[0].pos)/1.5
+        go_to_point(self.drones[0], self.ball.pos, target_speed)
+
+        # Create a tail behind the first drone.
+        target = self.drones[0].pos - normalise(self.drones[0].vel) * distance
+        self.tail = [target]
+
+        for i, drone in enumerate(self.drones[1:]):
+            target_speed = np.linalg.norm(self.drones[i].vel) + np.linalg.norm(self.drones[i].pos - self.drones[i+1].pos)/1.5
+            go_to_point(drone, target, target_speed)
+            target -= normalise(drone.vel) * distance
+            self.tail.append(target)
+
+
+
+
+def go_to_point(drone, point, target_speed):
+    """Simple controller that takes the bot to a point.
+    
+    Arguments:
+        drone {Drone} -- The drone being controlled.
+        point {np.ndarray} -- World coordinates of the target point.
+    """
+
+    # Calculates location of point in local coordinates.
+    local_point = local(drone.orient_m, drone.pos, point)
+
+    # Finds 2D angle to point.
+    # Positive is clockwise.
+    angle = np.arctan2(local_point[1], local_point[0])
+
+    def f(x, a):
+        """Modified sigmoid"""
+        # Graph: https://www.geogebra.org/m/udfp2zcy
+        return 2 / (1 + np.exp(a*x)) - 1
+
+    # Calculates steer.
+    drone.ctrl.steer = f(angle, -3)
+    
+    # Calculates throttle.
+    if np.linalg.norm(drone.vel) < target_speed:
+        drone.ctrl.throttle = 1.0
+    else:
+        drone.ctrl.throttle = 0.0
+'''
