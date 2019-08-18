@@ -185,7 +185,7 @@ class ExampleHivemind(BotHelperProcess):
 
                     # Each drone should try to face the ball.
                     for drone in self.drones:
-                        turn_to_pos(drone, ball.pos)
+                        turn_to_pos(drone, self.ball.pos, game_time)
 
                     # Filters out all the predictions where the ball is too far off the ground.
                     # Result is a list of tuples of positions and time.
@@ -194,19 +194,24 @@ class ExampleHivemind(BotHelperProcess):
                     if len(filtered_prediction) > 0:
                         # Turns the predition into a numpy array for fast vectorized calculations.
                         filtered_prediction = np.array(filtered_prediction)
+
                         # Gets the vectors from the drones to the ball prediction.
-                        right_to_prediction = filtered_prediction[:,0] - right.pos
-                        left_to_prediction = filtered_prediction[:,0] - left.pos
+                        positions = np.vstack(filtered_prediction[:,0])
+                        right_to_prediction = positions - right.pos
+                        left_to_prediction = positions - left.pos
+
                         # Calculates the distances.
-                        right_distances = np.sqrt(np.einsum('i...,i...->i',right_to_prediction,right_to_prediction))
-                        left_distances = np.sqrt(np.einsum('i...,i...->i',left_to_prediction,left_to_prediction))
+                        # Cool blog post about einsum: http://ajcr.net/Basic-guide-to-einsum/
+                        right_distances = np.sqrt(np.einsum('ij,ij->i',right_to_prediction,right_to_prediction))
+                        left_distances = np.sqrt(np.einsum('ij,ij->i',left_to_prediction,left_to_prediction))
+
                         # Filters out the predictions which are too close or too far.
-                        CLOSEST = 1500
-                        FARTHEST = 3000
-                        good_distances = (closest < right_distances < furthest) & (closest < left_distances < furthest)
+                        CLOSEST = 1500.0
+                        FARTHEST = 3000.0
+                        good_distances = (CLOSEST <= right_distances) & (FARTHEST >= right_distances) & (CLOSEST <= left_distances) & (FARTHEST >= left_distances)
                         correct_distance_targets = filtered_prediction[good_distances]
 
-                        if len(correct_distance_targets > 0):
+                        if len(correct_distance_targets) > 0:
                             # Extra time buffer. Adjust as needed.
                             # Gives time for drones to better align in PINCH state since they'll have more time.
                             TIME_BUFFER = 0.5
@@ -219,15 +224,15 @@ class ExampleHivemind(BotHelperProcess):
                             # https://www.geogebra.org/m/nnsat4pj
                             right_times = right_distances**0.55 / 41.53
                             right_times[right_distances>2177.25] = 1/2300 * right_distances[right_distances>2177.25] + 0.70337
-                            right_times += game_time + TIME_ERROR
+                            right_times += game_time + TIME_BUFFER
                             
                             left_times = left_distances**0.55 / 41.53
                             left_times[left_distances>2177.25] = 1/2300 * left_distances[left_distances>2177.25] + 0.70337
-                            left_times += game_time + TIME_ERROR
+                            left_times += game_time + TIME_BUFFER
 
                             # Filters out the predictions which we can't get to.
-                            good_times = (good_distance_targets[:1] > right_times) & (good_distance_targets[:1] > left_times)
-                            valid_targets = good_distance_targets[good_times]
+                            good_times = (correct_distance_targets[:,1] > right_times) & (correct_distance_targets[:,1] > left_times)
+                            valid_targets = correct_distance_targets[good_times]
 
                             # To avoid flukes or anomalies, check that the ball is valid for at least 10 steps.
                             # Not exact because there could be more bounce spots but good enough to avoid flukes.
@@ -241,45 +246,54 @@ class ExampleHivemind(BotHelperProcess):
                                 self.state = State.PINCH
 
                     # Rendering number of positions viable after each condition.
-                    draw.draw_string_2d(10, 10, 2, 2, f'Good height: {len(filtered_prediction)}', draw.white())
-                    draw.draw_string_2d(10, 30, 2, 2, f'Good distance: {len(correct_distance_targets)}', draw.white())
-                    draw.draw_string_2d(10, 50, 2, 2, f'Good time: {len(valid_targets)}', draw.white())
+                    draw.draw_string_2d(10, 70, 2, 2, f'Good height: {len(filtered_prediction)}', draw.white())
+                    draw.draw_string_2d(10, 100, 2, 2, f'Good distance: {len(correct_distance_targets)}', draw.white())
+                    try:
+                        draw.draw_string_2d(10, 130, 2, 2, f'Good time: {len(valid_targets)}', draw.white())
+                    except UnboundLocalError:
+                        draw.draw_string_2d(10, 130, 2, 2, f'Good time: 0', draw.white())
 
                     
                 elif self.state == State.PINCH:
-                    # Pessimistic time error. Adjust as needed.
-                    # Makes drones start this bit earlier than they think they need to.
-                    TIME_ERROR = 0.05
-
-                    if not right.going:
-                        # Get the distance to the target.
-                        right_distance = np.linalg.norm(self.pinch_target[0] - right.pos)
-                        # Get a time estimate
-                        right_time = right_distance**0.55 / 41.53 if right_distance <= 2177.25 else 1/2300 * right_distance + 0.70337
-
-                        # Waits until time is right to go. Otherwise turns to face the target position.
-                        if game_time + right_time + TIME_ERROR >= self.pinch_target[1]:
-                            right.going = True 
-                        else:
-                            turn_to_pos(right, self.pinch_target[1])
+                    
+                    # Checks if the ball has been hit recently.
+                    if packet.game_ball.latest_touch.time_seconds + 0.2 > game_time:
+                        self.state == State.SETUP
 
                     else:
-                        fast_to_pos(right, self.pinch_target[1])
+                        # Pessimistic time error. Adjust as needed.
+                        # Makes drones start this bit earlier than they think they need to.
+                        TIME_ERROR = 0.05
 
-                    # Same for left.
-                    if not left.going:
-                        left_distance = np.linalg.norm(self.pinch_target[0] - left.pos)
-                        left_time = left_distance**0.55 / 41.53 if left_distance <= 2177.25 else 1/2300 * left_distance + 0.70337
-                        if game_time + left_time + TIME_ERROR >= self.pinch_target[1]:
-                            left.going = True 
+                        if not right.going:
+                            # Get the distance to the target.
+                            right_distance = np.linalg.norm(self.pinch_target[0] - right.pos)
+                            # Get a time estimate
+                            right_time = right_distance**0.55 / 41.53 if right_distance <= 2177.25 else 1/2300 * right_distance + 0.70337
+
+                            # Waits until time is right to go. Otherwise turns to face the target position.
+                            if game_time + right_time + TIME_ERROR >= self.pinch_target[1]:
+                                right.going = True 
+                            else:
+                                turn_to_pos(right, self.pinch_target[1], game_time)
+
                         else:
-                            turn_to_pos(left, self.pinch_target[1])
-                    else:
-                        fast_to_pos(left, self.pinch_targets[1])
+                            fast_to_pos(right, self.pinch_target[1])
 
-                    # Some rendering.
-                    draw.draw_string_2d(10, 10, 2, 2, f'Right going: {right.going}', draw.white())
-                    draw.draw_string_2d(10, 30, 2, 2, f'Left going: {left.going}', draw.white())
+                        # Same for left.
+                        if not left.going:
+                            left_distance = np.linalg.norm(self.pinch_target[0] - left.pos)
+                            left_time = left_distance**0.55 / 41.53 if left_distance <= 2177.25 else 1/2300 * left_distance + 0.70337
+                            if game_time + left_time + TIME_ERROR >= self.pinch_target[1]:
+                                left.going = True 
+                            else:
+                                turn_to_pos(left, self.pinch_target[1], game_time)
+                        else:
+                            fast_to_pos(left, self.pinch_target[1])
+
+                        # Some rendering.
+                        draw.draw_string_2d(10, 70, 2, 2, f'Right going: {right.going}', draw.white())
+                        draw.draw_string_2d(10, 100, 2, 2, f'Left going: {left.going}', draw.white())
 
             else:
                 draw.draw_string_2d(10, 10, 2, 2, 'This example version has only been coded for 2 HiveBots.', draw.red())
@@ -291,7 +305,7 @@ class ExampleHivemind(BotHelperProcess):
 
 
             # Some example rendering:
-            draw.draw_string_2d(10,300,3,3,f'{self.state}',draw.pink())
+            draw.draw_string_2d(10,10,3,3,f'{self.state}',draw.pink())
             # Renders ball prediction
             path = [step.physics.location for step in ball_prediction.slices]
             draw.draw_polyline_3d(path, draw.pink())
@@ -405,15 +419,16 @@ class ExampleHivemind(BotHelperProcess):
         '''
 
 def slow_to_pos(drone, position):
-    # Calculate distance.
+    # Calculate distance and velocity.
     distance = np.linalg.norm(position - drone.pos)
+    velocity = np.linalg.norm(drone.vel)
     # Calculates the target position in local coordinates.
     local_target = local(drone.orient_m, drone.pos, position)
     # Finds 2D angle to target. Positive is clockwise.
     angle = np.arctan2(local_target[1], local_target[0])
 
     def special_sauce(x, a):
-        """Modified sigmoid to smooth things out."""
+        """Modified sigmoid to smooth out steering."""
         # Graph: https://www.geogebra.org/m/udfp2zcy
         return 2 / (1 + np.exp(a*x)) - 1
 
@@ -427,11 +442,28 @@ def slow_to_pos(drone, position):
         drone.ctrl.throttle = 1.0
         drone.ctrl.handbrake = True
     else:
-        drone.ctrl.throttle = special_sauce(distance, -0.00013)
+        # A little PD controller to stop at target.
+        drone.ctrl.throttle = cap(3*distance - 2*velocity, -1.0, 1.0)
 
+#TODO Make better so the bots don't go away from the wait pos
+def turn_to_pos(drone, position, game_time):
+    # Calculates the target position in local coordinates.
+    local_target = local(drone.orient_m, drone.pos, position)
+    # Finds 2D angle to target. Positive is clockwise.
+    angle = np.arctan2(local_target[1], local_target[0])
 
-def turn_to_pos(drone, position):
-    pass
+    # Toggles forward.
+    RATE = 0.3
+    drone.forward = round(game_time / RATE) % 2
+
+    drone.ctrl.handbrake = True
+    if drone.forward:
+        drone.ctrl.throttle = 1.0
+        drone.ctrl.steer = cap(angle, -1, 1)
+    else:
+        drone.ctrl.throttle = -1.0
+        drone.ctrl.steer = cap(-angle, -1 , 1)
+
 
 def fast_to_pos(drone, position):
     pass        
@@ -630,6 +662,25 @@ def team_sign(team : int) -> int:
         int -- 1 if Blue, -1 if Orange
     """
     return 1 if team == 0 else -1
+
+
+def cap(value : float, minimum : float, maximum : float) -> float:
+    """Caps the value at given minumum and maximum.
+    
+    Arguments:
+        value {float} -- The value being capped.
+        minimum {float} -- Smallest value.
+        maximum {float} -- Largest value.
+    
+    Returns:
+        float -- The capped value or the original value if within range.
+    """
+    if value > maximum:
+        return maximum
+    elif value < minimum:
+        return minimum
+    else:
+        return value
 
 goal_pos = a3l([0,5300,0])
     
