@@ -206,12 +206,12 @@ class ExampleHivemind(BotHelperProcess):
                         left_distances = np.sqrt(np.einsum('ij,ij->i',left_to_prediction,left_to_prediction))
 
                         # Filters out the predictions which are too close or too far.
-                        CLOSEST = 1500.0
-                        FARTHEST = 3000.0
+                        CLOSEST = 1700.0
+                        FARTHEST = 3500.0
                         good_distances = (CLOSEST <= right_distances) & (FARTHEST >= right_distances) & (CLOSEST <= left_distances) & (FARTHEST >= left_distances)
-                        correct_distance_targets = filtered_prediction[good_distances]
+                        valid_targets = filtered_prediction[good_distances]
 
-                        if len(correct_distance_targets) > 0:
+                        if len(valid_targets) > 0:
                             # Extra time buffer. Adjust as needed.
                             # Gives time for drones to better align in PINCH state since they'll have more time.
                             TIME_BUFFER = 0.5
@@ -231,8 +231,8 @@ class ExampleHivemind(BotHelperProcess):
                             left_times += game_time + TIME_BUFFER
 
                             # Filters out the predictions which we can't get to.
-                            good_times = (correct_distance_targets[:,1] > right_times) & (correct_distance_targets[:,1] > left_times)
-                            valid_targets = correct_distance_targets[good_times]
+                            good_times = (valid_targets[:,1] > right_times) & (valid_targets[:,1] > left_times)
+                            valid_targets = valid_targets[good_times]
 
                             # To avoid flukes or anomalies, check that the ball is valid for at least 10 steps.
                             # Not exact because there could be more bounce spots but good enough to avoid flukes.
@@ -247,23 +247,21 @@ class ExampleHivemind(BotHelperProcess):
 
                     # Rendering number of positions viable after each condition.
                     draw.draw_string_2d(10, 70, 2, 2, f'Good height: {len(filtered_prediction)}', draw.white())
-                    draw.draw_string_2d(10, 100, 2, 2, f'Good distance: {len(correct_distance_targets)}', draw.white())
-                    try:
-                        draw.draw_string_2d(10, 130, 2, 2, f'Good time: {len(valid_targets)}', draw.white())
-                    except UnboundLocalError:
-                        draw.draw_string_2d(10, 130, 2, 2, f'Good time: 0', draw.white())
+                    draw.draw_string_2d(10, 100, 2, 2, f'Good distance: {len(valid_targets)}', draw.white())
+                    # Possible TODO: render circles to show distances.
 
                     
                 elif self.state == State.PINCH:
                     
                     # Checks if the ball has been hit recently.
-                    if packet.game_ball.latest_touch.time_seconds + 0.2 > game_time:
-                        self.state == State.SETUP
+                    if packet.game_ball.latest_touch.time_seconds + 0.1 > game_time:
+                        self.pinch_target = None
+                        self.state = State.SETUP
 
-                    else:
+                    elif self.pinch_target is not None:
                         # Pessimistic time error. Adjust as needed.
                         # Makes drones start this bit earlier than they think they need to.
-                        TIME_ERROR = 0.05
+                        TIME_ERROR = 0.1
 
                         if not right.going:
                             # Get the distance to the target.
@@ -275,10 +273,10 @@ class ExampleHivemind(BotHelperProcess):
                             if game_time + right_time + TIME_ERROR >= self.pinch_target[1]:
                                 right.going = True 
                             else:
-                                turn_to_pos(right, self.pinch_target[1], game_time)
+                                turn_to_pos(right, self.pinch_target[0], game_time)
 
                         else:
-                            fast_to_pos(right, self.pinch_target[1])
+                            fast_to_pos(right, self.pinch_target[0])
 
                         # Same for left.
                         if not left.going:
@@ -287,9 +285,9 @@ class ExampleHivemind(BotHelperProcess):
                             if game_time + left_time + TIME_ERROR >= self.pinch_target[1]:
                                 left.going = True 
                             else:
-                                turn_to_pos(left, self.pinch_target[1], game_time)
+                                turn_to_pos(left, self.pinch_target[0], game_time)
                         else:
-                            fast_to_pos(left, self.pinch_target[1])
+                            fast_to_pos(left, self.pinch_target[0])
 
                         # Some rendering.
                         draw.draw_string_2d(10, 70, 2, 2, f'Right going: {right.going}', draw.white())
@@ -305,7 +303,7 @@ class ExampleHivemind(BotHelperProcess):
 
 
             # Some example rendering:
-            draw.draw_string_2d(10,10,3,3,f'{self.state}',draw.pink())
+            draw.draw_string_2d(10, 10, 3, 3, f'{self.state}', draw.pink())
             # Renders ball prediction
             path = [step.physics.location for step in ball_prediction.slices]
             draw.draw_polyline_3d(path, draw.pink())
@@ -436,16 +434,14 @@ def slow_to_pos(drone, position):
     drone.ctrl.steer = special_sauce(angle, -5)
 
     # Throttle controller.
-
     if abs(angle) > 2:
         # If I'm facing the wrong way, do a little drift.
         drone.ctrl.throttle = 1.0
         drone.ctrl.handbrake = True
-    else:
-        # A little PD controller to stop at target.
-        drone.ctrl.throttle = cap(3*distance - 2*velocity, -1.0, 1.0)
+    elif distance > 100:
+        # A simple PD controller to stop at target.
+        drone.ctrl.throttle = cap(0.3*distance - 0.2*velocity, -1.0, 1.0)
 
-#TODO Make better so the bots don't go away from the wait pos
 def turn_to_pos(drone, position, game_time):
     # Calculates the target position in local coordinates.
     local_target = local(drone.orient_m, drone.pos, position)
@@ -453,20 +449,34 @@ def turn_to_pos(drone, position, game_time):
     angle = np.arctan2(local_target[1], local_target[0])
 
     # Toggles forward.
-    RATE = 0.3
+    RATE = 0.2
     drone.forward = round(game_time / RATE) % 2
 
-    drone.ctrl.handbrake = True
+    # Wiggles forward and back switching the steer to rotate on the spot.
     if drone.forward:
-        drone.ctrl.throttle = 1.0
+        drone.ctrl.throttle = 0.5
         drone.ctrl.steer = cap(angle, -1, 1)
     else:
-        drone.ctrl.throttle = -1.0
+        drone.ctrl.throttle = -0.5
         drone.ctrl.steer = cap(-angle, -1 , 1)
 
 
 def fast_to_pos(drone, position):
-    pass        
+    # Calculates the target position in local coordinates.
+    local_target = local(drone.orient_m, drone.pos, position)
+    # Finds 2D angle to target. Positive is clockwise.
+    angle = np.arctan2(local_target[1], local_target[0])
+
+    def special_sauce(x, a):
+        """Modified sigmoid to smooth out steering."""
+        # Graph: https://www.geogebra.org/m/udfp2zcy
+        return 2 / (1 + np.exp(a*x)) - 1
+
+    # Control towards hit position. Fully boosting.
+    drone.ctrl.steer = special_sauce(angle, -5)
+    drone.ctrl.throttle = 1.0
+    drone.ctrl.boost = True
+           
 
 # -----------------------------------------------------------
 
