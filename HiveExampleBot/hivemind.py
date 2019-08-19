@@ -16,6 +16,32 @@ from rlbot.utils.game_state_util import Vector3, Rotator
 
 PI = np.pi
 
+# -----------------------------------------------------------
+
+# PARAMETERS:
+
+# Distance parameters for the range in which it will consider pinching.
+CLOSEST = 1700.0
+FARTHEST = 3500.0
+
+# Extra time buffer. 
+# Gives time for drones to better align in PINCH state since they'll have more time.
+TIME_BUFFER = 0.5
+
+# Pessimistic time error.
+# Makes drones start this bit earlier than they think they need to.
+TIME_ERROR = 0.1
+
+# Turn to pos wiggle rate per second.
+RATE = 0.2
+
+# Additional tweakable positions starting on line 187 for where bots will wait.
+# More tweakable values directly in the controllers at the bottom.
+
+# -----------------------------------------------------------
+
+# THE HIVEMIND:
+
 class ExampleHivemind(BotHelperProcess):
 
     # Some terminology:
@@ -157,6 +183,7 @@ class ExampleHivemind(BotHelperProcess):
 
                 # Bots get boost and go to wait positions.
                 if self.state == State.SETUP:
+
                     # Some guide positions.
                     right_boost = a3l([-3072.0, -4096.0, 71.1])*sign
                     right_wait = a3l([-1792.0, -4184.0, 71.1])*sign
@@ -206,16 +233,10 @@ class ExampleHivemind(BotHelperProcess):
                         left_distances = np.sqrt(np.einsum('ij,ij->i',left_to_prediction,left_to_prediction))
 
                         # Filters out the predictions which are too close or too far.
-                        CLOSEST = 1700.0
-                        FARTHEST = 3500.0
                         good_distances = (CLOSEST <= right_distances) & (FARTHEST >= right_distances) & (CLOSEST <= left_distances) & (FARTHEST >= left_distances)
                         valid_targets = filtered_prediction[good_distances]
 
-                        if len(valid_targets) > 0:
-                            # Extra time buffer. Adjust as needed.
-                            # Gives time for drones to better align in PINCH state since they'll have more time.
-                            TIME_BUFFER = 0.5
-                            
+                        if len(valid_targets) > 0:                           
                             # Getting the remaining distances after filter.
                             right_distances = right_distances[good_distances]
                             left_distances = left_distances[good_distances]
@@ -259,10 +280,6 @@ class ExampleHivemind(BotHelperProcess):
                         self.state = State.SETUP
 
                     elif self.pinch_target is not None:
-                        # Pessimistic time error. Adjust as needed.
-                        # Makes drones start this bit earlier than they think they need to.
-                        TIME_ERROR = 0.1
-
                         if not right.going:
                             # Get the distance to the target.
                             right_distance = np.linalg.norm(self.pinch_target[0] - right.pos)
@@ -322,99 +339,9 @@ class ExampleHivemind(BotHelperProcess):
             # Rate limit sleep.
             rate_limit.acquire()
 
+# -----------------------------------------------------------
 
-    def team_pinch(self, pinch_drones):
-        '''
-        # Finds time remaining to pinch.
-        time_remaining = self.pinch_time - game_time
-
-        # Sorts the pinch drones right to left 
-        # so the right bot goes from the right and the left goes from the left.
-        right_to_left_drones = sorted(pinch_drones, key=lambda drone: drone.pos[0]*team_sign(drone.team))
-
-        for i, drone in enumerate(right_to_left_drones):
-            # Finds vector towards goal from pinch target location.
-            vector_to_goal = normalise(goal_pos*team_sign(drone.team)-self.pinch_target)
-            # Finds 2D vector towards goal from pinch target.
-            angle_to_goal = np.arctan2(vector_to_goal[1],vector_to_goal[0])
-            # Angle offset for each bot participating in pinch.
-            angle_offset = 2*PI / (len(pinch_drones) + 1)
-            # Calculating approach vector.
-            approach_angle = angle_to_goal + angle_offset * (i+1)
-            approach_vector = np.array([np.cos(approach_angle), np.sin(approach_angle), 0])
-
-            # Calculate target velocity
-            distance_to_target = np.linalg.norm(self.pinch_target - drone.pos)
-            target_velocity = distance_to_target / time_remaining
-            # Offset target from the pinch target to drive towards.
-            drive_target = self.pinch_target + (approach_vector * distance_to_target/2)
-            # Calculates the pinch location in local coordinates.
-            local_target = local(drone.orient_m, drone.pos, drive_target)
-            # Finds 2D angle to target. Positive is clockwise.
-            angle = np.arctan2(local_target[1], local_target[0])
-
-            # Smooths out steering with modified sigmoid funcion.
-            def special_sauce(x, a):
-                """Modified sigmoid."""
-                # Graph: https://www.geogebra.org/m/udfp2zcy
-                return 2 / (1 + np.exp(a*x)) - 1
-
-            # Calculates steer.
-            drone.ctrl.steer = special_sauce(angle, -5)
-
-            # Throttle controller.
-            local_velocity = local(drone.orient_m, a3l([0,0,0]), drone.vel)
-            # If I'm facing the wrong way, do a little drift.
-            if abs(angle) > 2:
-                drone.ctrl.throttle = 1.0
-                drone.ctrl.handbrake = True
-            else:
-                drone.ctrl.throttle = 1 if local_velocity[0] < target_velocity else 0.0
-
-            # Rendering of approach vectors.
-            self.game_interface.renderer.begin_rendering(f'approach vectors {i}')
-            self.game_interface.renderer.draw_line_3d(self.pinch_target, drive_target, self.game_interface.renderer.green())
-            self.game_interface.renderer.end_rendering()
-        '''
-        '''
-        error = 0.2
-
-        for drone in pinch_drones:
-            # Calculates the target location in local coordinates.
-            local_target = local(drone.orient_m, drone.pos, self.pinch_target)
-            # Finds 2D angle to target. Positive is clockwise.
-            angle = np.arctan2(local_target[1], local_target[0])
-            # Finds estimated time of arrival.
-            ETA = game_time + local_target[0] / np.linalg.norm(drone.vel)
-
-            # If pointing in right-ish direction, control throttle.
-            if abs(angle) < 0.5:
-                drone.ctrl.throttle = 1.0 if ETA > self.pinch_time + error else 0.0
-            # If I'm facing the wrong way, do a little drift.
-            elif abs(angle) > 1.6:
-                drone.ctrl.throttle = 1.0
-                drone.ctrl.handbrake = True
-            # Just throttle if you're a bit wrong.
-            else:
-                drone.ctrl.throttle = 1.0
-
-            # Smooths out steering with modified sigmoid funcion.
-            def special_sauce(x, a):
-                """Modified sigmoid."""
-                # Graph: https://www.geogebra.org/m/udfp2zcy
-                return 2 / (1 + np.exp(a*x)) - 1
-
-            # Calculates steer.
-            drone.ctrl.steer = special_sauce(angle, -5)
-
-            # Dodge at the very end to pinch the ball.
-            if 0.15 < self.pinch_time - game_time < 0.2:
-                drone.ctrl.jump = True
-
-            elif 0.0 < self.pinch_time - game_time  < 0.1:
-                drone.ctrl.pitch = -1
-                drone.ctrl.jump = True
-        '''
+# CONTROLLERS:
 
 def slow_to_pos(drone, position):
     # Calculate distance and velocity.
@@ -442,6 +369,7 @@ def slow_to_pos(drone, position):
         # A simple PD controller to stop at target.
         drone.ctrl.throttle = cap(0.3*distance - 0.2*velocity, -1.0, 1.0)
 
+
 def turn_to_pos(drone, position, game_time):
     # Calculates the target position in local coordinates.
     local_target = local(drone.orient_m, drone.pos, position)
@@ -449,7 +377,6 @@ def turn_to_pos(drone, position, game_time):
     angle = np.arctan2(local_target[1], local_target[0])
 
     # Toggles forward.
-    RATE = 0.2
     drone.forward = round(game_time / RATE) % 2
 
     # Wiggles forward and back switching the steer to rotate on the spot.
@@ -477,7 +404,6 @@ def fast_to_pos(drone, position):
     drone.ctrl.throttle = 1.0
     drone.ctrl.boost = True
            
-
 # -----------------------------------------------------------
 
 # UTILS:
