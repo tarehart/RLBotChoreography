@@ -21,7 +21,7 @@ PI = np.pi
 # PARAMETERS:
 
 # Distance parameters for the range in which it will consider pinching.
-CLOSEST = 1700.0
+CLOSEST = 1500.0
 FARTHEST = 3500.0
 
 # Extra time buffer. 
@@ -30,7 +30,7 @@ TIME_BUFFER = 0.5
 
 # Pessimistic time error.
 # Makes drones start this bit earlier than they think they need to.
-TIME_ERROR = 0.1
+TIME_ERROR = -0.1
 
 # Turn to pos wiggle rate per second.
 RATE = 0.2
@@ -137,7 +137,7 @@ class ExampleHivemind(BotHelperProcess):
 
             # Begins rendering at the start of the loop; makes life easier.
             # https://discordapp.com/channels/348658686962696195/446761380654219264/610879527089864737
-            draw.begin_rendering()
+            draw.begin_rendering(f'Hivemind{self.drones[0].team}')
 
             # PRE-PROCESSING:
             # Updating the game packet from the game.
@@ -269,8 +269,11 @@ class ExampleHivemind(BotHelperProcess):
                     # Rendering number of positions viable after each condition.
                     draw.draw_string_2d(10, 70, 2, 2, f'Good height: {len(filtered_prediction)}', draw.white())
                     draw.draw_string_2d(10, 100, 2, 2, f'Good distance: {len(valid_targets)}', draw.white())
-                    # Possible TODO: render circles to show distances.
-
+                    # Render circles to show distances.
+                    draw.draw_polyline_3d(make_circle(CLOSEST, right.pos, 20), draw.cyan())
+                    draw.draw_polyline_3d(make_circle(CLOSEST, left.pos, 20), draw.cyan())
+                    draw.draw_polyline_3d(make_circle(FARTHEST, right.pos, 30), draw.pink())
+                    draw.draw_polyline_3d(make_circle(FARTHEST, left.pos, 30), draw.pink())
                     
                 elif self.state == State.PINCH:
                     
@@ -322,7 +325,7 @@ class ExampleHivemind(BotHelperProcess):
             # Some example rendering:
             draw.draw_string_2d(10, 10, 3, 3, f'{self.state}', draw.pink())
             # Renders ball prediction
-            path = [step.physics.location for step in ball_prediction.slices]
+            path = [step.physics.location for step in ball_prediction.slices[::10]]
             draw.draw_polyline_3d(path, draw.pink())
 
             # Renders drone indices.
@@ -587,6 +590,9 @@ def local(A : np.ndarray, p0 : np.ndarray, p1 : np.ndarray) -> np.ndarray:
     """
     return np.dot(A.T, p1 - p0)
 
+# -----------------------------------------------------------
+
+# OTHER:
 
 def team_sign(team : int) -> int:
     """Gives the sign for a calculation based on team.
@@ -617,6 +623,23 @@ def cap(value : float, minimum : float, maximum : float) -> float:
         return minimum
     else:
         return value
+
+def make_circle(radius, centre, n):
+    """Returns n number of points on a circle.
+
+    Currently assumes that you want the circle on the XY plane, at height 20.
+    
+    Arguments:
+        radius {float} -- Radius of the circle.
+        centre {np.ndarray} -- Centre of the circle.
+        n {int} -- Number of points to generate.
+    """
+    theta = np.linspace(0, 2*PI, n).reshape((n, 1))
+    x = np.cos(theta)*radius
+    y = np.sin(theta)*radius
+    z = np.ones_like(x)*20
+    circle = np.concatenate((x,y,z), axis=1)
+    return circle + centre
 
 goal_pos = a3l([0,5300,0])
     
