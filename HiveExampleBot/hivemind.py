@@ -64,6 +64,7 @@ class ExampleHivemind(BotHelperProcess):
         self.running_indices = set()
 
     def try_receive_agent_metadata(self):
+        """Adds all drones with the correct key to our set of running indices."""
         while True:  # will exit on queue.Empty
             try:
                 # Adds drone indices to running_indices.
@@ -245,14 +246,12 @@ class ExampleHivemind(BotHelperProcess):
                             # https://www.geogebra.org/m/nnsat4pj
                             right_times = right_distances**0.55 / 41.53
                             right_times[right_distances > 2177.25] = 1/2300 * \
-                                right_distances[right_distances >
-                                                2177.25] + 0.70337
+                                right_distances[right_distances > 2177.25] + 0.70337
                             right_times += game_time + TIME_BUFFER
 
                             left_times = left_distances**0.55 / 41.53
                             left_times[left_distances > 2177.25] = 1/2300 * \
-                                left_distances[left_distances >
-                                               2177.25] + 0.70337
+                                left_distances[left_distances > 2177.25] + 0.70337
                             left_times += game_time + TIME_BUFFER
 
                             # Filters out the predictions which we can't get to.
