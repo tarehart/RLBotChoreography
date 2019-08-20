@@ -147,7 +147,6 @@ class ExampleHivemind(BotHelperProcess):
 
             # Processing ball data.
             self.ball.pos = a3v(packet.game_ball.physics.location)
-            self.ball.vel = a3v(packet.game_ball.physics.velocity)
 
             # Processing drone data.
             for drone in self.drones:
@@ -369,7 +368,6 @@ class ExampleHivemind(BotHelperProcess):
 
 # CONTROLLERS:
 
-
 def slow_to_pos(drone, position):
     # Calculate distance and velocity.
     distance = np.linalg.norm(position - drone.pos)
@@ -437,7 +435,6 @@ def fast_to_pos(drone, position):
 # I copied over some of my HiveBot utils.
 # Feel free to check out the full utilities file of HiveBot.
 
-
 class Drone:
     """Houses the processed data from the packet for the drones.
 
@@ -484,16 +481,13 @@ class Ball:
 
     Attributes:
         pos {np.ndarray} -- Position vector.
-        vel {np.ndarray} -- Velocity vector.
     """
     __slots__ = [
-        'pos',
-        'vel'
+        'pos'
     ]
 
     def __init__(self):
         self.pos: np.ndarray = np.zeros(3)
-        self.vel: np.ndarray = np.zeros(3)
 
 
 # An example state enum.
@@ -507,7 +501,6 @@ class State:
 # -----------------------------------------------------------
 
 # FUNCTIONS FOR CONVERTION TO NUMPY ARRAYS:
-
 
 def a3l(L: list) -> np.ndarray:
     """Converts list to numpy array.
@@ -547,23 +540,6 @@ def a3v(V: Vector3) -> np.ndarray:
 # -----------------------------------------------------------
 
 # LINEAR ALGEBRA:
-
-
-def normalise(V: np.ndarray) -> np.ndarray:
-    """Normalises a vector.
-
-    Arguments:
-        V {np.ndarray} -- Vector.
-
-    Returns:
-        np.ndarray -- Normalised vector.
-    """
-    magnitude = np.linalg.norm(V)
-    if magnitude != 0.0:
-        return V / magnitude
-    else:
-        return V
-
 
 def orient_matrix(R: np.ndarray) -> np.ndarray:
     """Converts from Euler angles to an orientation matrix.
@@ -623,7 +599,6 @@ def local(A: np.ndarray, p0: np.ndarray, p1: np.ndarray) -> np.ndarray:
 
 # OTHER:
 
-
 def team_sign(team: int) -> int:
     """Gives the sign for a calculation based on team.
 
@@ -671,6 +646,3 @@ def make_circle(radius, centre, n):
     z = np.ones_like(x)*20
     circle = np.concatenate((x, y, z), axis=1)
     return circle + centre
-
-
-goal_pos = a3l([0, 5300, 0])
