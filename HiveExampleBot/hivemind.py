@@ -42,7 +42,6 @@ RATE = 0.2
 
 # THE HIVEMIND:
 
-
 class ExampleHivemind(BotHelperProcess):
 
     # Some terminology:
