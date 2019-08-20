@@ -1,6 +1,6 @@
 '''
 Main bot file, just requests the hivemind helper process.
-Your hivemind code going in hivemind.py
+Your hivemind code goes in hivemind.py.
 '''
 
 import os
