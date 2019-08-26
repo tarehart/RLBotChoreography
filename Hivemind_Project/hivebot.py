@@ -14,7 +14,7 @@ class HiveBot(BaseIndependentAgent):
 
         filepath = os.path.join(os.path.dirname(__file__), 'hivemind.py')
         # Differentiates between teams so each team has its own hivemind.
-        key = 'Blue Hivemind' if self.team == 0 else 'Orange Hivemind'
+        key = 'Blue is the sky' if self.team == 0 else 'Orange is the sun'
         options = {}
         request = HelperProcessRequest(filepath, key, options=options)
 
