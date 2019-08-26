@@ -5,6 +5,7 @@ from math import sin, cos
 
 from rlbot.utils.structures.game_interface import GameInterface
 from rlbot.utils.structures.game_data_struct import GameTickPacket
+from rlbot.utils.structures.ball_prediction_struct import BallPrediction
 from rlbot.utils.logging_utils import get_logger
 from rlbot.utils.game_state_util import GameState, BallState, CarState, Physics, Vector3
 
@@ -44,6 +45,13 @@ class Observer():
             else:
                 if packet.game_info.is_round_active:
 
+                    # Renders ball prediction.
+                    ball_prediction = BallPrediction()
+                    self.game_interface.update_ball_prediction(ball_prediction)
+                    self.game_interface.renderer.begin_rendering()
+                    self.game_interface.renderer.draw_polyline_3d([step.physics.location for step in ball_prediction.slices[::10]], self.game_interface.renderer.cyan())
+                    self.game_interface.renderer.end_rendering()
+
                     car_states = {}
 
                     for i in range(packet.num_cars):
@@ -66,7 +74,7 @@ class Observer():
                             x = car.physics.velocity.x - STICK*(-CR * CY * SP - SR * SY)
                             y = car.physics.velocity.y - STICK*(-CR * SY * SP + SR * CY)
                             z = car.physics.velocity.z - STICK*(CP * CR)
-                            
+
                             car_states.update({i: CarState(physics=Physics(velocity=Vector3(x,y,z)))})
 
                     
