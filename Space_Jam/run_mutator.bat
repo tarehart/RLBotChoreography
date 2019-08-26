@@ -4,3 +4,5 @@
 cd /D "%~dp0"
 
 python zero_gravity_mutator.py
+
+pause
