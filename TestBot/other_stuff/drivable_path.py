@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 
 def bezier_cubic(p0, p1, p2, p3, n : int):
@@ -50,106 +49,82 @@ def max_speed_from_curve(path_k):
     max_s = f(k)
     return max_s 
 
+def path_analysis(path, start_vel = 0):
+    path_curvature  = get_curvature(path)
+    path_velocities = max_speed_from_curve(path_curvature)
+
+    # Displacements
+    a = path[:-1]
+    b = path[1:]
+    diff = b - a
+    displacements = np.sqrt(np.einsum('ij,ij->i',diff,diff))
+
+    # Forward pass.
+    current_vel = start_vel # Initial velocity
+    f_path_velocities = path_velocities.copy()
+    f_path_velocities[0] = current_vel
+
+    for i in range(len(f_path_velocities)-1):
+        # Get max velocity from path.
+        path_vel = path_velocities[i]
+        
+        # Homebrewed interpolation to get max acceleration
+        if current_vel >= 1400:
+            if current_vel >= 1410:
+                possible_accel = 0
+            else:
+                possible_accel = -16*current_vel + 22560
+        else:
+            if current_vel >= 0:
+                possible_accel = (-36/35)*current_vel + 1600
+            else:
+                possible_accel = 3500
+        
+        possible_accel += 991.667 # Assuming you have boost.
+
+        # Get greatest possible velocity.
+        possible_vel = np.sqrt(current_vel**2 + possible_accel*displacements[i])
+
+        # Use the smaller of the two velocities.
+        current_vel = possible_vel if possible_vel < path_vel else path_vel
+        f_path_velocities[i+1] = current_vel
+
+    # Backward pass.
+    b_path_velocities = f_path_velocities.copy()
+    b_path_velocities[0] = current_vel
+    reversed_displacements = displacements[::-1]
+    reversed_f_path_velocities = f_path_velocities[::-1]
+
+    for i in range(len(f_path_velocities)-1):
+        # Get the path velocity.
+        path_vel = reversed_f_path_velocities[i]
+
+        # Calculate maximum velocity.
+        # We are going backwards through the velocities so this means braking.
+        possible_vel = np.sqrt(current_vel**2 + 3500*reversed_displacements[i])
+
+        # Use the smaller of the two velocities.
+        current_vel = path_vel if path_vel <= possible_vel else possible_vel
+        b_path_velocities[i+1] = current_vel
+
+    # Reverse the backwards pass.
+    b_path_velocities = b_path_velocities[::-1]
+
+    # Getting time estimate.
+    # Using einsum is faster although more obscure. 
+    # It is basically just dividing displacements by velocities and then summing the times.
+    time_estimate = np.einsum('i,i', displacements, 1/b_path_velocities[1:])
+
+    return time_estimate
+
 p0 = np.array([0,0,0])
 p1 = np.array([100,-500,0])
 p2 = np.array([400,-500,0])
 p3 = np.array([1000,0,0])
 
-n = 10000
+n = 100
 
 path = bezier_cubic(p0, p1, p2, p3, n)
-path_by_arc_len = reparam_by_arc_len(path)
-path_curvature  = get_curvature(path)
-path_velocities = max_speed_from_curve(path_curvature)
 
-# Displacements
-a = path[:-1]
-b = path[1:]
-diff = b - a
-displacements = np.sqrt(np.einsum('ij,ij->i',diff,diff))
+path_analysis(path)
 
-# Forward pass.
-current_vel = 0 # Initial velocity
-f_path_velocities = path_velocities.copy()
-f_path_velocities[0] = current_vel
-
-'''
-v = np.array([0, 1400, 1410, 2300])
-a = np.array([1600, 160, 0, 0])
-f = interp1d(v, a)
-
-for i in range(len(path_velocities)-1):
-    path_vel = path_velocities[i]
-    possible_accel = f(current_vel) + 991.667 # Assuming you have boost.
-    possible_vel = np.sqrt(current_vel**2 + possible_accel*displacements[i])
-    current_vel = possible_vel if possible_vel < path_vel else path_vel
-    f_path_velocities[i+1] = current_vel
-'''
-for i in range(n-1):
-    path_vel = path_velocities[i]
-    
-    # Homebrewed interpolation
-    # m = (y2-y1) / (x2-x1)
-    # c = y1 - m*x1
-    if current_vel >= 1400:
-        if current_vel >= 1410:
-            possible_accel = 0
-        else:
-            possible_accel = -16*current_vel + 22560
-    else:
-        if current_vel >= 0:
-            possible_accel = (-36/35)*current_vel + 1600
-        else:
-            possible_accel = 3500
-    
-    possible_accel += 991.667 # Assuming you have boost.
-    possible_vel = np.sqrt(current_vel**2 + possible_accel*displacements[i])
-    current_vel = possible_vel if possible_vel < path_vel else path_vel
-    f_path_velocities[i+1] = current_vel
-
-# Backward pass.
-b_path_velocities = f_path_velocities.copy()
-b_path_velocities[0] = current_vel
-reversed_displacements = displacements[::-1]
-reversed_f_path_velocities = f_path_velocities[::-1]
-for i in range(len(f_path_velocities)-1):
-    path_vel = reversed_f_path_velocities[i]
-    possible_vel = np.sqrt(current_vel**2 + 3500*reversed_displacements[i])
-    current_vel = path_vel if path_vel <= possible_vel else possible_vel
-    b_path_velocities[i+1] = current_vel
-b_path_velocities = b_path_velocities[::-1]
-
-
-path_len = get_path_length(path)
-print(f'total length: {path_len}')
-time_estimate = np.einsum('i,i', displacements, 1/b_path_velocities[1:])
-print(f'time estimate: {time_estimate}')
-
-# Plotting
-plt.rcParams['figure.figsize'] = [10, 20]
-
-plt.subplot(5,1,1)
-plt.plot(path[:,0], path[:,1])
-plt.ylabel('Path')
-
-plt.subplot(5,1,2)
-plt.plot(path_by_arc_len, path_curvature)
-plt.xlabel('Arc length')
-plt.ylabel('Curvature')
-
-plt.subplot(5,1,3)
-plt.plot(path_by_arc_len, path_velocities)
-plt.xlabel('Arc length')
-plt.ylabel('Velocity')
-
-plt.subplot(5,1,4)
-plt.plot(path_by_arc_len, f_path_velocities)
-plt.xlabel('Arc length')
-plt.ylabel('Velocity after f-pass')
-
-plt.subplot(5,1,5)
-plt.plot(path_by_arc_len, b_path_velocities)
-plt.xlabel('Arc length')
-plt.ylabel('Velocity after b-pass')
-
-plt.show()
