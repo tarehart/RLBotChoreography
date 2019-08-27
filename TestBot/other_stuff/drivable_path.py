@@ -115,7 +115,7 @@ def path_analysis(path, start_vel = 0):
     # It is basically just dividing displacements by velocities and then summing the times.
     time_estimate = np.einsum('i,i', displacements, 1/b_path_velocities[1:])
 
-    return time_estimate
+    return time_estimate, b_path_velocities
 
 p0 = np.array([0,0,0])
 p1 = np.array([100,-500,0])
