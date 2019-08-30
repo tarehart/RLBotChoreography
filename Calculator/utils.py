@@ -5,6 +5,8 @@ from rlbot.utils.game_state_util import Vector3, Rotator
 import numpy as np
 from scipy.interpolate import interp1d
 
+from dataclasses import dataclass
+
 # -----------------------------------------------------------
 
 # CLASSES:
@@ -67,7 +69,7 @@ class Car:
         
         self.orient_m   : np.ndarray    = np.identity(3)
         self.turn_r     : float         = 0.0
-        self.predict    : dict          = {}
+        self.predict    : dict          = []
 
 class Ball:
     """Houses the processed data from the packet for the ball.
@@ -77,14 +79,16 @@ class Ball:
         rot {np.ndarray} -- Rotation (pitch, yaw, roll). 
         vel {np.ndarray} -- Velocity vector.
         ang_vel {np.ndarray} -- Angular velocity (x, y, z). Chip's omega.
-        predict {dict} -- Ball prediction.
+        predict {Prediction} -- Ball prediction.
+        last_touch {dict} -- Last touch information.
     """
     __slots__ = [
         'pos',
         'rot',
         'vel',
         'ang_vel',
-        'predict'
+        'predict',
+        'last_touch'
     ]
 
     def __init__(self):
@@ -92,7 +96,8 @@ class Ball:
         self.rot        : np.ndarray    = np.zeros(3)
         self.vel        : np.ndarray    = np.zeros(3)
         self.ang_vel    : np.ndarray    = np.zeros(3)
-        self.predict    : dict          = {}
+        self.predict    : Prediction    = Prediction(np.zeros((360,3)),np.zeros((360,3)),np.zeros((360,1)))
+        self.last_touch : dict          = None
 
 class BoostPad:
     """Houses the processed data from the packet fot the boost pads.
@@ -116,32 +121,17 @@ class BoostPad:
         self.active     : bool          = True
         self.timer      : float         = 0.0
 
-class Agent(Car):
-    """An Agent is a Car that you control.
-    It has some additional attributes that Car does not have.
-    
-    Inheritance:
-        Car -- Houses the processed data from the packet.
-
-    Attributes:
-        ctrl {PlayerInput} -- The controller inputs for the drone.
-        kickoff {str} -- The kickoff position.
-        role {Role} -- The drone's role in a strategy.
-        controller {Controller} -- The drone's controller generating inputs. 
-    """
+@dataclass
+class Prediction:
     __slots__ = [
-        'ctrl',
-        'kickoff',
-        'role',
-        'controller'
+        'pos',
+        'vel',
+        'time'
     ]
 
-    def __init__(self, index : int, team : int, name : str):
-        super().__init__(index, team, name)
-        self.ctrl       = None
-        self.kickoff    = None
-        self.role       = None
-        self.controller = None
+    pos : np.ndarray
+    vel : np.ndarray
+    time : np.ndarray
 
 # -----------------------------------------------------------
 
@@ -322,7 +312,7 @@ def team_sign(team : int) -> int:
         int -- 1 if Blue, -1 if Orange
     """
     return 1 if team == 0 else -1
-    
+
 
 def turn_r(v : np.ndarray) -> float:
     """Calculates the minimum turning radius for given velocity.
@@ -336,24 +326,12 @@ def turn_r(v : np.ndarray) -> float:
     s = np.linalg.norm(v)
     return -6.901E-11 * s**4 + 2.1815E-07 * s**3 - 5.4437E-06 * s**2 + 0.12496671 * s + 157
 
+# -----------------------------------------------------------
 
-def naive_predict(pos : np.ndarray, vel : np.ndarray, seconds : float, n : int) -> list:
-    """Returns a list of tuples of time and position using a naive prediction method, i.e. continues moving at current velocity.
-    
-    Arguments:
-        pos {np.ndarray} -- Starting position.
-        vel {np.ndarray} -- Current velocity.
-        seconds {float} -- Number of seconds to predict for.
-        n {int} -- How many predictions to make.
-    
-    Returns:
-        list -- List of tuples of time and predicted position at that time.
-    """
-    prediction = []
-    step = seconds / n
+# OTHER:
 
-    for i in range(n+1):
-        t = step*i
-        prediction.append((t, pos+t*vel))
-
-    return prediction
+def special_sauce(x, a):
+    """Modified sigmoid to smooth out steering."""
+    # Graph showing how it can be used for steering: 
+    # https://www.geogebra.org/m/udfp2zcy
+    return 2 / (1 + np.exp(a*x)) - 1
