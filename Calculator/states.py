@@ -33,7 +33,7 @@ class Catch(BaseState):
         # Looks for bounces in the ball predicion.
         z_pos = agent.ball.predict.pos[:,2]
         z_vel = agent.ball.predict.vel[:,2]
-        bounce_bool = (z_vel[:-1] < z_vel[1:]) & (z_pos[:-1] < 100)
+        bounce_bool = (z_vel[:-1] < z_vel[1:]) & (z_pos[:-1] < 93)
         
         if np.count_nonzero(bounce_bool) > 0:
             # If there are some bounces, calculate the distance to them.
@@ -52,17 +52,21 @@ class Catch(BaseState):
         # Checks if the ball has been hit recently.
         if agent.ball.last_touch.time_seconds + 0.1 > agent.game_time:
             self.expired = True
+            
         else:
             # Looks for bounces in the ball predicion.
             z_pos = agent.ball.predict.pos[:,2]
             z_vel = agent.ball.predict.vel[:,2]
-            bounce_bool = (z_vel[:-1] < z_vel[1:]) & (z_pos[:-1] < 100)
-            bounces = agent.ball.predict.pos[:-1][bounce_bool]
-            bounce_times = agent.ball.predict.time[:-1][bounce_bool]
+            bounce_bool = (z_vel[:-1] < z_vel[1:]) & (z_pos[:-1] < 93)
 
-            agent.ctrl = precise(agent, bounces[0], bounce_times[0])
+            if np.count_nonzero(bounce_bool):
+                self.expired = True
 
-            agent.renderer.draw_polyline_3d(bounces, agent.renderer.red())
+            else:
+                bounces = agent.ball.predict.pos[:-1][bounce_bool]
+                bounce_times = agent.ball.predict.time[:-1][bounce_bool]
+
+                agent.ctrl = precise(agent, bounces[0], bounce_times[0])
         
         super().execute(agent)
 
