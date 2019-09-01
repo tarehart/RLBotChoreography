@@ -4,11 +4,9 @@ from rlbot.agents.base_agent import SimpleControllerState
 
 from utils import np, local, normalise, special_sauce
 
-
 class BaseState:
     def __init__(self):
         self.expired = False
-        self.timer = 0.0
 
     @staticmethod
     def available(agent):
@@ -17,8 +15,6 @@ class BaseState:
     def execute(self, agent):
         if not agent.r_active:
             self.expired = True
-        else:
-            self.timer += agent.dt
 
 
 class Idle(BaseState):
@@ -27,48 +23,58 @@ class Idle(BaseState):
 
 
 class Catch(BaseState):
+
+    def __init__(self):
+        super().__init__()
+        self.target_pos = None
+        self.target_time = None
     
     @staticmethod
     def available(agent):
-        # Looks for bounces in the ball predicion.
-        z_pos = agent.ball.predict.pos[:,2]
-        z_vel = agent.ball.predict.vel[:,2]
-        bounce_bool = (z_vel[:-1] < z_vel[1:]) & (z_pos[:-1] < 93)
-        
-        if np.count_nonzero(bounce_bool) > 0:
+        bounces, times = Catch.get_bounces(agent)
+        if len(bounces) > 0:
             # If there are some bounces, calculate the distance to them.
-            bounces = agent.ball.predict.pos[:-1][bounce_bool]
             vectors = bounces - agent.player.pos
             distances = np.sqrt(np.einsum('ij,ij->i', vectors, vectors))
-            
+                
             # Check if the bounces are reachable (rough estimate).
-            return np.count_nonzero(distances/1400 <= agent.ball.predict.time[:-1][bounce_bool]) > 0
+            good_time = distances/1400 + 1 <= times
+            return np.count_nonzero(good_time) > 0
 
         else:
             return False
-
+        
     def execute(self, agent):
+        super().execute(agent)
 
         # Checks if the ball has been hit recently.
         if agent.ball.last_touch.time_seconds + 0.1 > agent.game_time:
             self.expired = True
             
-        else:
-            # Looks for bounces in the ball predicion.
-            z_pos = agent.ball.predict.pos[:,2]
-            z_vel = agent.ball.predict.vel[:,2]
-            bounce_bool = (z_vel[:-1] < z_vel[1:]) & (z_pos[:-1] < 93)
-
-            if np.count_nonzero(bounce_bool):
-                self.expired = True
-
-            else:
-                bounces = agent.ball.predict.pos[:-1][bounce_bool]
-                bounce_times = agent.ball.predict.time[:-1][bounce_bool]
-
-                agent.ctrl = precise(agent, bounces[0], bounce_times[0])
+        elif self.target_pos is None:
+            bounces, times = Catch.get_bounces(agent)
+            vectors = bounces - agent.player.pos
+            distances = np.sqrt(np.einsum('ij,ij->i', vectors, vectors))
+            good_time = distances/1400 + 1 <= times
         
-        super().execute(agent)
+            self.target_pos = bounces[good_time][0]
+            self.target_time = times[good_time][0]
+
+        else:
+            agent.ctrl = precise(agent, self.target_pos, self.target_time)
+
+
+    @staticmethod
+    def get_bounces(agent):
+        # Looks for bounces in the ball predicion.
+        z_pos = agent.ball.predict.pos[:,2]
+        z_vel = agent.ball.predict.vel[:,2]
+        bounce_bool = (z_vel[:-1] < z_vel[1:]) & (z_pos[:-1] < 93)
+        bounces = agent.ball.predict.pos[:-1][bounce_bool]
+        times = agent.ball.predict.time[:-1][bounce_bool]
+        return bounces, times
+
+
 
 
 def simple(agent, target, ctrl = SimpleControllerState()):
