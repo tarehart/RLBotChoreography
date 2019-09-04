@@ -21,6 +21,8 @@ class Calculator(BaseAgent):
         if self.state.expired:
             if Catch.available(self):
                 self.state = Catch()
+            else:
+                Idle()
         
     def get_output(self, packet: GameTickPacket) -> SimpleControllerState:
         # Runs setup.
