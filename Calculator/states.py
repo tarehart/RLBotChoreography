@@ -1,8 +1,12 @@
-'''States.'''
+'''States and controllers.'''
 
 from rlbot.agents.base_agent import SimpleControllerState
 
-from utils import np, local, normalise, special_sauce
+from utils import np, local, normalise, cap, special_sauce
+
+# -----------------------------------------------------------
+
+# STATES:
 
 class BaseState:
     def __init__(self):
@@ -22,6 +26,25 @@ class Idle(BaseState):
         self.expired = True
 
 
+class Kickoff(BaseState):
+    def __init__(self):
+        super().__init__()
+        self.kickoff_pos = None
+
+    @staticmethod
+    def available(agent):
+        return agent.ko_pause and agent.r_active
+
+    def execute(self, agent):
+        # If the kickoff pause ended and the ball has been touched recently, expire.
+        if (not agent.ko_pause) and (agent.ball.last_touch.time_seconds + 0.1 > agent.game_time):
+            self.expired = True
+
+        agent.ctrl = simple(agent, agent.ball.pos)
+
+        # TODO Do proper kickoff code.
+
+
 class Catch(BaseState):
 
     def __init__(self):
@@ -38,7 +61,7 @@ class Catch(BaseState):
             distances = np.sqrt(np.einsum('ij,ij->i', vectors, vectors))
                 
             # Check if the bounces are reachable (rough estimate).
-            good_time = distances/ + 0.5 <= times
+            good_time = distances/1000 + 0.5 <= times
             return np.count_nonzero(good_time) > 0
 
         else:
@@ -62,7 +85,7 @@ class Catch(BaseState):
                 # Calculate the distance and estimate the time required to get there.
                 vectors = bounces - agent.player.pos
                 distances = np.sqrt(np.einsum('ij,ij->i', vectors, vectors))
-                good_time = distances/1400 + 0.5<= np.squeeze(times)
+                good_time = distances/1000 + 0.5<= np.squeeze(times)
             
                 # Select the first good position and time.
                 self.target_pos = bounces[good_time][0]
@@ -87,13 +110,19 @@ class Catch(BaseState):
         # Looks for bounces in the ball predicion.
         z_pos = agent.ball.predict.pos[:,2]
         z_vel = agent.ball.predict.vel[:,2]
-        bounce_bool = (z_vel[:-1] - 500 < z_vel[1:]) & (z_pos[:-1] < 93)
+        bounce_bool = (z_vel[:-1] - 1000 < z_vel[1:]) & (z_pos[:-1] < 93)
         bounces = agent.ball.predict.pos[:-1][bounce_bool]
         times = agent.ball.predict.time[:-1][bounce_bool]
         return bounces, times
 
 
+class DribbleToGoal(BaseState):
+    pass
 
+
+# -----------------------------------------------------------
+
+# CONTROLLERS:
 
 def simple(agent, target, ctrl = SimpleControllerState()):
     # Calculates angle to target.
@@ -152,6 +181,18 @@ def precise(agent, target, time, ctrl = SimpleControllerState()):
 
 
 def speed_controller(current_vel, desired_vel, dt):
+    """Returns the throttle and boost to get to desired velocity.
+    
+    Arguments:
+        current_vel {float} -- The current forward velocity.
+        desired_vel {float} -- Desired forward velocity.
+        dt {float} -- Delta time for frame.
+    
+    Returns:
+        float -- The throttle amount.
+        bool -- Whether to boost or not.
+    """
+    desired_vel = cap(desired_vel, 0, 2300)
 
     # Gets the maximum acceleration based on current velocity.
     if current_vel < 0:
@@ -169,7 +210,7 @@ def speed_controller(current_vel, desired_vel, dt):
     desired_accel = dv / dt
 
     # If you want to slow down more than coast decceleration, brake.
-    if desired_accel < -525 -1000: # -525 is the coast deccel. -1000 is just extra to prevent it from spamming brake.
+    if desired_accel < -525 -800: # -525 is the coast deccel. Some extra to prevent it from spamming brake.
         throttle = -1
         boost = False
 
