@@ -9,7 +9,7 @@ from rlbot.utils.game_state_util import GameState, BallState, CarState, Physics,
 # Local file imports.
 import data
 from utils import np, a3l, normalise, local, cap, team_sign, special_sauce
-from states import Idle, Kickoff, Catch
+from states import Idle, Kickoff, Catch, Dribble#, GetBoost
 
 class Calculator(BaseAgent):
 
@@ -21,10 +21,14 @@ class Calculator(BaseAgent):
         if self.state.expired:
             if Kickoff.available(self):
                 self.state = Kickoff()
+            elif Dribble.available(self):
+                self.state = Dribble()
             elif Catch.available(self):
                 self.state = Catch()
-            #else:
-                #self.state = Idle()
+            #elif GetBoost.available(self):
+                #self.state = GetBoost()
+            else:
+                self.state = Idle()
         
     def get_output(self, packet: GameTickPacket) -> SimpleControllerState:
         # Runs setup.
