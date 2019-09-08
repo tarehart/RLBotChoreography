@@ -1,10 +1,8 @@
 '''Main bot file.'''
 
 # RLBot imports.
-from rlbot.agents.base_agent                    import BaseAgent, SimpleControllerState
-from rlbot.utils.structures.game_data_struct    import GameTickPacket
-
-from rlbot.utils.game_state_util import GameState, BallState, CarState, Physics, Vector3, Rotator
+from rlbot.agents.base_agent import BaseAgent, SimpleControllerState
+from rlbot.utils.structures.game_data_struct import GameTickPacket
 
 # Local file imports.
 import data
@@ -57,4 +55,5 @@ class Calculator(BaseAgent):
     def render(self, r):
         r.begin_rendering()
         r.draw_string_2d(10, 10, 2, 2, f'{self.state.__class__.__name__}', r.white())
+        r.draw_polyline_3d(self.ball.predict.pos, r.pink())
         r.end_rendering()

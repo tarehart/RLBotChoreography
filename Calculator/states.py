@@ -2,7 +2,9 @@
 
 from rlbot.agents.base_agent import SimpleControllerState
 
-from utils import np, a3l, local, world, normalise, cap, special_sauce
+from utils import np, a3l, local, world, angle_between_vectors, normalise, cap, team_sign, special_sauce
+
+orange_inside_goal = a3l([0, 5150, 0])
 
 # -----------------------------------------------------------
 
@@ -63,7 +65,7 @@ class Catch(BaseState):
             distances = np.sqrt(np.einsum('ij,ij->i', vectors, vectors))
                 
             # Check if the bounces are reachable (rough estimate).
-            good_time = distances/1000 + 0.5 <= np.squeeze(times)
+            good_time = distances/1000 <= np.squeeze(times)
             return np.count_nonzero(good_time) > 0
 
         else:
@@ -87,10 +89,12 @@ class Catch(BaseState):
                 # Calculate the distance and estimate the time required to get there.
                 vectors = bounces - agent.player.pos
                 distances = np.sqrt(np.einsum('ij,ij->i', vectors, vectors))
-                good_time = distances/1000 + 0.5 <= np.squeeze(times)
+                good_time = distances/1000 <= np.squeeze(times)
             
                 # Select the first good position and time.
-                self.target_pos = bounces[good_time][0]
+                bounce = bounces[good_time][0] * a3l([1,1,0])
+                direction = normalise(agent.player.pos * a3l([1,1,0]) - bounce)
+                self.target_pos = bounce + direction*40
                 self.target_time = times[good_time][0]
 
         # Expires state if too late.
@@ -102,8 +106,9 @@ class Catch(BaseState):
             agent.ctrl = precise(agent, self.target_pos, self.target_time)
 
             # Draw a cyan square over the target position.
-            agent.renderer.begin_rendering('Catch target')
-            agent.renderer.draw_rect_3d(self.target_pos,7,7,True,agent.renderer.cyan())
+            agent.renderer.begin_rendering('State')
+            agent.renderer.draw_rect_3d(self.target_pos, 10, 10, True, agent.renderer.cyan())
+            agent.renderer.draw_polyline_3d((agent.ball.pos, self.target_pos, agent.player.pos), agent.renderer.white())
             agent.renderer.end_rendering()
 
         super().execute(agent)
@@ -115,42 +120,58 @@ class Catch(BaseState):
         z_pos = agent.ball.predict.pos[:,2]
         z_vel = agent.ball.predict.vel[:,2]
         # Compares change in z velocity between ticks and whether the ball is on the ground.
-        bounce_bool = (z_vel[:-1] < z_vel[1:] - 500) & (z_pos[:-1] < 93)
+        bounce_bool = (z_vel[:-1] < z_vel[1:] - 500) & (z_pos[:-1] < 100)
         bounces = agent.ball.predict.pos[:-1][bounce_bool]
         times = agent.ball.predict.time[:-1][bounce_bool]
         return bounces, times
 
 
 class Dribble(BaseState):
+
     @staticmethod
     def available(agent):
         return agent.ball.pos[2] > 100 and np.linalg.norm(agent.ball.pos - agent.player.pos) < 300
 
     def execute(self, agent):
-        self.balance_point = world(agent.player.orient_m, agent.player.pos, a3l([0,0,120]))
 
-        if np.linalg.norm(agent.ball.pos - self.balance_point) > 200 or agent.ball.pos[2] < 93:
+        # If ball touching ground, expire.
+        if agent.ball.pos[2] < 100:
             self.expired = True
 
-        front = world(agent.player.orient_m, agent.player.pos, a3l([1,0,0]))
-        car_vel = np.dot(front, agent.player.vel)
-        ball_vel = np.dot(front, agent.ball.vel)
+        # Look into ball prediction for ball touching the ground.
+        bool_array = agent.ball.predict.pos[:,2] < 100
+        time = agent.ball.predict.time[bool_array][0]
+        bounce = agent.ball.predict.pos[bool_array][0] * a3l([1,1,0])
 
-        offset = local(agent.player.orient_m, self.balance_point, agent.ball.pos)
-        agent.ctrl.steer = cap(offset[1]/100, -1, 1)
-        agent.ctrl.throttle, agent.ctrl.boost = speed_controller(car_vel, ball_vel, agent.dt)
+        # Calculates angle to opponent's goal
+        opponent_goal = orange_inside_goal * team_sign(agent.team)
+        ball_to_goal = opponent_goal - agent.ball.pos
+        angle = angle_between_vectors(ball_to_goal, agent.ball.vel * a3l([1,1,0])) * np.sign(agent.ball.vel[0])
 
-        agent.renderer.begin_rendering('Dribble balance')
-        agent.renderer.draw_rect_3d(self.balance_point, 5, 5, True, agent.renderer.red())
-        agent.renderer.draw_rect_3d(agent.ball.pos, 5, 5, True, agent.renderer.green())
-        agent.renderer.draw_line_3d(self.balance_point, agent.ball.pos, agent.renderer.white())
-        agent.renderer.draw_string_2d(200, 200, 2, 2, f'{offset}', agent.renderer.red())
+        # Create an offset to control the ball.
+        distance = np.linalg.norm(opponent_goal - agent.player.pos)
+        goal_angle = np.arctan2(892.775,distance)
+
+        if abs(angle) < goal_angle:
+            local_offset = a3l([-30, 0, 0])
+        else:
+            local_offset = a3l([-15,20*np.sign(-angle),0])
+
+        offset = world(agent.player.orient_m, a3l([0,0,0]), local_offset)
+
+        target = bounce + offset
+        agent.ctrl = precise(agent, target, time)
+
+        agent.renderer.begin_rendering('State')
+        agent.renderer.draw_rect_3d(target, 10, 10, True, agent.renderer.cyan())
+        agent.renderer.draw_polyline_3d((agent.ball.pos, target, agent.player.pos), agent.renderer.white())
         agent.renderer.end_rendering()
-
-        
         
         super().execute(agent)
 
+
+class Flick(BaseState):
+    pass
 
 
 class GetBoost(BaseState):
@@ -193,7 +214,7 @@ def simple(agent, target):
     ctrl.throttle = 1
 
     # Handbrake if large angle.
-    if abs(angle) > 1.85:
+    if abs(angle) > 1.65:
         ctrl.handbrake = True
 
     # Boost if small angle.
@@ -203,7 +224,9 @@ def simple(agent, target):
     return ctrl
 
 
-def precise(agent, target, time, ctrl = SimpleControllerState()):
+def precise(agent, target, time):
+    ctrl = SimpleControllerState()
+
     # Calculates angle to target.
     local_target = local(agent.player.orient_m, agent.player.pos, target)
     angle = np.arctan2(local_target[1], local_target[0])
@@ -234,7 +257,7 @@ def precise(agent, target, time, ctrl = SimpleControllerState()):
         ctrl.boost = False
         ctrl.handbrake = False
 
-    if distance < 100:
+    if distance < 50:
         ctrl.throttle = 0.0
         ctrl.boost = 0.0
 

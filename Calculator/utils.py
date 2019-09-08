@@ -146,7 +146,7 @@ def a3l(L : list) -> np.ndarray:
     Returns:
         np.array -- Numpy array with the same contents as the list.
     """
-    return np.array([L[0], L[1], L[2]])
+    return np.array(L)
 
 
 def a3r(R : Rotator) -> np.ndarray:
@@ -311,7 +311,7 @@ def team_sign(team : int) -> int:
     Returns:
         int -- 1 if Blue, -1 if Orange
     """
-    return 1 if team == 0 else -1
+    return -2 * team + 1
 
 
 def turn_r(v : np.ndarray) -> float:
