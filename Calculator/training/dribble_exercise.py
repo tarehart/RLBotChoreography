@@ -12,23 +12,24 @@ from rlbottraining.grading.grader import Grader
 from rlbottraining.rng import SeededRandomNumberGenerator
 
 @dataclass
-class DribbleExercise(TrainingExercise):
+class DribbleDrop(TrainingExercise):
     grader : Grader = field(default_factory=DribbleGrader)
 
     def make_game_state(self, rng: SeededRandomNumberGenerator) -> GameState:
         car_state = CarState(
             boost_amount=100,
             physics=Physics(
-                location=Vector3(0, -4000, 20),
+                location=Vector3(rng.n11()*1000, -4250, 20),
                 velocity=Vector3(0, 0, 0),
-                rotation=Rotator(0, pi / 2, 0)
+                rotation=Rotator(0, pi / 2, 0),
+                angular_velocity=Vector3(0, 0, 0)
                 )
             )
 
         ball_state = BallState(
             Physics(
-                location=Vector3(0, -3500, 500),
-                velocity=Vector3(0, 0, 1)
+                location=Vector3(0, -2500, 1000),
+                velocity=Vector3(0, -500, 500)
                 )
             )
 
@@ -36,13 +37,41 @@ class DribbleExercise(TrainingExercise):
         return game_state
 
 
+@dataclass
+class DribbleRoll(TrainingExercise):
+    grader : Grader = field(default_factory=DribbleGrader)
+    
+    def make_game_state(self, rng: SeededRandomNumberGenerator) -> GameState:
+        car_state = CarState(
+            boost_amount=100,
+            physics=Physics(
+                location=Vector3(-2000, -4250, 20),
+                velocity=Vector3(2000, 0, 0),
+                rotation=Rotator(0, 0, 0),
+                angular_velocity=Vector3(0, 0, 0)
+                )
+            )
+
+        ball_state = BallState(
+            Physics(
+                location=Vector3(-1700, -4000, 100),
+                velocity=Vector3(800, 200, 0)
+                )
+            )
+
+        game_state = GameState(ball=ball_state, cars={0: car_state})
+        return game_state
+
 
 def make_default_playlist() -> Playlist:
-    ex = DribbleExercise('Simple Dribble')
-    ex.match_config.player_configs = [
-        PlayerConfig.bot_config(Path(__file__).absolute().parent.parent / 'Calculator.cfg', Team.BLUE)
-    ]
-    return [ex]
+    exercises = [DribbleDrop('Dribble Drop'), DribbleRoll('Dribble Roll')]
+
+    for ex in exercises:
+        ex.match_config.player_configs = [
+            PlayerConfig.bot_config(Path(__file__).absolute().parent.parent / 'Calculator.cfg', Team.BLUE)
+        ]
+
+    return exercises
 
 
 

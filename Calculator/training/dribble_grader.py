@@ -12,29 +12,38 @@ from rlbottraining.grading.training_tick_packet import TrainingTickPacket
 
 @dataclass
 class DribbleGrader(CompoundGrader):
-    def __init__(self, ally_team = 0, timeout_seconds = 60):
+    def __init__(self, timeout_seconds = 30, ally_team = 0):
         super().__init__([
             PassOnGoalForAllyTeam(ally_team),
             FailOnTimeout(timeout_seconds),
-            FailOnDroppedBallOutsideGoalZone()
+            FailOnDropBallAfterTimeoutNotNearGoal(),
         ])
 
 @dataclass
-class FailOnDroppedBallOutsideGoalZone(Grader):
+class FailOnDropBallAfterTimeoutNotNearGoal(Grader):
+
+    def __init__(self):
+        super().__init__()
+        self.dribble_started = False
 
     class FailDueToDroppedBall(Fail):
         def __repr__(self):
             return f'{super().__repr__()}: Ball dropped during dribble.'
 
     def on_tick(self, tick: TrainingTickPacket) -> Optional[Grade]:
+
         packet = tick.game_tick_packet
         ball = packet.game_ball.physics.location
+
+        if not self.dribble_started and ball.z > 150:
+            self.dribble_started = True
+
         goal = Vector3(0,5120,100)
 
         distance_to_goal = ((ball.x - goal.x)**2 + (ball.y - goal.y)**2)**0.5
 
-        # If the ball touches the ground, fail.
-        if ball.z < 100 and distance_to_goal > 2000:
+        # If the ball touches the ground not close to the goal.
+        if self.dribble_started and ball.z < 100 and distance_to_goal > 1250:
             return self.FailDueToDroppedBall()
         else:
             return None

@@ -23,9 +23,11 @@ class BaseState:
             self.expired = True
 
 
+
 class Idle(BaseState):
     def execute(self, agent):
         self.expired = True
+
 
 
 class Kickoff(BaseState):
@@ -47,6 +49,7 @@ class Kickoff(BaseState):
         super().execute(agent)
 
         # TODO Do proper kickoff code.
+
 
 
 class Catch(BaseState):
@@ -105,7 +108,7 @@ class Catch(BaseState):
         else:
             agent.ctrl = precise(agent, self.target_pos, self.target_time)
 
-            # Draw a cyan square over the target position.
+            # Rendering.
             agent.renderer.begin_rendering('State')
             agent.renderer.draw_rect_3d(self.target_pos, 10, 10, True, agent.renderer.cyan())
             agent.renderer.draw_polyline_3d((agent.ball.pos, self.target_pos, agent.player.pos), agent.renderer.white())
@@ -126,6 +129,23 @@ class Catch(BaseState):
         return bounces, times
 
 
+
+class PickUp(BaseState):
+
+    @staticmethod
+    def available(agent):
+        small_z_vel = np.abs(agent.ball.predict.vel[:,2]) < 10
+        on_ground = agent.ball.predict.pos[:,2] < 100
+
+        return np.count_nonzero(small_z_vel & on_ground) > 60
+
+    def execute(self, agent):
+        # TODO catch up to the ball, kind of next to it, and drive into it from the side.
+        pass
+
+
+
+
 class Dribble(BaseState):
 
     @staticmethod
@@ -136,6 +156,8 @@ class Dribble(BaseState):
 
         # If ball touching ground, expire.
         if agent.ball.pos[2] < 100:
+            self.expired = True
+        if np.linalg.norm(agent.ball.pos - agent.player.pos) > 300:
             self.expired = True
 
         # Look into ball prediction for ball touching the ground.
@@ -149,29 +171,83 @@ class Dribble(BaseState):
         angle = angle_between_vectors(ball_to_goal, agent.ball.vel * a3l([1,1,0])) * np.sign(agent.ball.vel[0])
 
         # Create an offset to control the ball.
-        distance = np.linalg.norm(opponent_goal - agent.player.pos)
+        local_offset = a3l([-25, 20 * special_sauce(angle, 5), 0])
+
+        '''
         goal_angle = np.arctan2(892.775,distance)
 
         if abs(angle) < goal_angle:
-            local_offset = a3l([-30, 0, 0])
+            local_offset = a3l([-40, 0, 0])
         else:
-            local_offset = a3l([-15,20*np.sign(-angle),0])
+            local_offset = a3l([-20,20*np.sign(-angle),0])
+        '''
 
         offset = world(agent.player.orient_m, a3l([0,0,0]), local_offset)
-
         target = bounce + offset
+
+        # Drive to the target.
         agent.ctrl = precise(agent, target, time)
 
+        '''
+        relative_ball = local(agent.player.orient_m, agent.player.pos, agent.ball.pos)
+        flick_sweetspot = a3l([40,0,135])
+        flick_distance = np.linalg.norm(flick_sweetspot - relative_ball)
+        goal_distance = np.linalg.norm(opponent_goal - agent.player.pos)
+        
+        # Flick if the angle is small and the distance is right.
+        if abs(angle) < 0.2 and flick_distance < 15 and (2000 < goal_distance < 5000):
+            self.expired = True
+            agent.state = Flick('BACKFLICK')
+        '''
+
+        # Rendering.
         agent.renderer.begin_rendering('State')
         agent.renderer.draw_rect_3d(target, 10, 10, True, agent.renderer.cyan())
         agent.renderer.draw_polyline_3d((agent.ball.pos, target, agent.player.pos), agent.renderer.white())
         agent.renderer.end_rendering()
-        
+
         super().execute(agent)
 
 
+
 class Flick(BaseState):
-    pass
+    def __init__(self, flick_type):
+        super().__init__()
+        self.flick_type = flick_type
+        self.timer = 0.0
+        
+    def execute(self, agent):
+        # TODO redo this in terms of relative positions and stuff.
+        if self.flick_type == 'BACKFLICK':
+            pass
+            '''
+            if self.timer < 0.1:
+                pass
+            elif self.timer < 0.3:
+                agent.ctrl.jump = True
+                agent.ctrl.yaw = 1
+                agent.ctrl.pitch = 1
+            
+            elif self.timer < 0.5:
+                agent.ctrl.boost = True
+                agent.ctrl.yaw = 1
+
+            elif self.timer < 1.1:
+                agent.ctrl.yaw = 1
+
+            elif self.timer < 1.2:
+                agent.ctrl.jump = True
+                agent.ctrl.pitch = 1
+            else:
+                self.expired = True
+            '''
+
+        agent.renderer.begin_rendering('State')
+        agent.renderer.end_rendering()
+
+        self.timer += agent.dt
+        super().execute(agent)
+        
 
 
 class GetBoost(BaseState):
