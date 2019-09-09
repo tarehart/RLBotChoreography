@@ -6,11 +6,20 @@ from utils import np, a3l, local, world, angle_between_vectors, normalise, cap, 
 
 orange_inside_goal = a3l([0, 5150, 0])
 
+kickoff_positions = np.array([
+    [-1952, -2464, 0], # r_corner
+    [ 1952, -2464, 0], # l_corner
+    [ -256, -3840, 0], # r_back
+    [  256, -3840, 0], # l_back
+    [  0.0, -4608, 0]  # centre
+])
+
 # -----------------------------------------------------------
 
 # STATES:
 
 class BaseState:
+
     def __init__(self):
         self.expired = False
 
@@ -25,12 +34,14 @@ class BaseState:
 
 
 class Idle(BaseState):
+
     def execute(self, agent):
         self.expired = True
 
 
 
 class Kickoff(BaseState):
+
     def __init__(self):
         super().__init__()
         self.kickoff_pos = None
@@ -44,7 +55,26 @@ class Kickoff(BaseState):
         if (not agent.ko_pause) and (agent.ball.last_touch.time_seconds + 0.1 > agent.game_time):
             self.expired = True
 
-        agent.ctrl = simple(agent, agent.ball.pos)
+        if self.kickoff_pos is None:
+            # Find closest kickoff position.
+            vectors = kickoff_positions * team_sign(agent.team) - agent.player.pos
+            distances = np.sqrt(np.einsum('ij,ij->i', vectors, vectors))
+            self.kickoff_pos = np.where(distances == np.amin(distances))[0][0]
+
+        distance = np.linalg.norm(agent.ball.pos - agent.player.pos)
+        ETA = distance / np.linalg.norm(agent.player.vel)
+
+        if ETA < 0.4:
+            self.expired = True
+            agent.state = Dodge(agent.ball.pos)
+
+        # Go for small boost pad on back kickoffs.
+        if self.kickoff_pos in (2,3) and distance > 2950:
+            target = a3l([0, -2816, 70]) * team_sign(agent.team)
+        else:
+            target = agent.ball.pos
+
+        agent.ctrl = simple(agent, target)
 
         super().execute(agent)
 
@@ -53,6 +83,8 @@ class Kickoff(BaseState):
 
 
 class Catch(BaseState):
+
+    # TODO Directed catch if in front of goal to bounce it in.
 
     def __init__(self):
         super().__init__()
@@ -131,17 +163,52 @@ class Catch(BaseState):
 
 
 class PickUp(BaseState):
+    
+    def __init__(self):
+        super().__init__()
+        self.ready_to_cut = False
 
     @staticmethod
     def available(agent):
         small_z_vel = np.abs(agent.ball.predict.vel[:,2]) < 10
         on_ground = agent.ball.predict.pos[:,2] < 100
 
-        return np.count_nonzero(small_z_vel & on_ground) > 60
+        return np.count_nonzero(small_z_vel & on_ground) > 60 and agent.ball.pos[2] < 100
 
     def execute(self, agent):
-        # TODO catch up to the ball, kind of next to it, and drive into it from the side.
-        pass
+
+        # Checks if the ball has been hit recently.
+        if agent.ball.last_touch.time_seconds + 0.1 > agent.game_time:
+            self.expired = True
+        if agent.ball.pos[2] > 100:
+            self.expired = True
+
+        if self.ready_to_cut:
+            target = agent.ball.pos
+
+        else:
+            # Find components in direction and perpendicular to the ball velocity.
+            ball_vel_direction = normalise(agent.ball.vel)
+            perpendicular_to_vel = np.cross(ball_vel_direction, a3l([0,0,1]))
+
+            # Calculating component lengths and multiplying with direction.
+            perpendicular_component =  120 * perpendicular_to_vel * np.sign(np.dot(perpendicular_to_vel, agent.player.pos))
+
+            # Combine components to get a drive target.
+            target = agent.ball.pos + agent.ball.vel/20 + perpendicular_component
+
+            if np.linalg.norm(target - agent.player.pos) < 80:
+                self.ready_to_cut = True
+
+        agent.ctrl = simple(agent, target)
+        agent.ctrl.throttle, agent.ctrl.boost = speed_controller(np.linalg.norm(agent.player.vel), np.linalg.norm(agent.ball.vel) + 400, agent.dt)
+
+        # Rendering.
+        agent.renderer.begin_rendering('State')
+        agent.renderer.draw_rect_3d(target, 10, 10, True, agent.renderer.cyan())
+        agent.renderer.end_rendering()
+
+        super().execute(agent)
 
 
 
@@ -167,38 +234,41 @@ class Dribble(BaseState):
 
         # Calculates angle to opponent's goal
         opponent_goal = orange_inside_goal * team_sign(agent.team)
-        ball_to_goal = opponent_goal - agent.ball.pos
-        angle = angle_between_vectors(ball_to_goal, agent.ball.vel * a3l([1,1,0])) * np.sign(agent.ball.vel[0])
+        ball_to_goal = (opponent_goal - agent.ball.pos) * a3l([1,1,0])
+        angle = angle_between_vectors(ball_to_goal, agent.ball.vel * a3l([1,1,0])) * np.sign(agent.ball.vel[0]) * team_sign(agent.team)
+
+        distance = np.linalg.norm(ball_to_goal)
+        goal_angle = np.arctan2(700, distance)
+        #ball_to_left_post = opponent_goal+a3l([800 * team_sign(agent.team), 0, 0]) - agent.ball.pos
+        #ball_to_right_post = opponent_goal-a3l([800 * team_sign(agent.team), 0, 0]) - agent.ball.pos  
+        #angle_left_post = angle_between_vectors(ball_to_goal, ball_to_left_post)
+        #angle_right_post = angle_between_vectors(ball_to_goal, ball_to_right_post)
+        # TODO Work out correct angles.
+
+        # 1 if ball is going left, -1 if ball is going right
+        #np.sign(agent.ball.vel[0]) * team_sign(agent.team)
 
         # Create an offset to control the ball.
-        local_offset = a3l([-25, 20 * special_sauce(angle, 5), 0])
-
-        '''
-        goal_angle = np.arctan2(892.775,distance)
-
         if abs(angle) < goal_angle:
             local_offset = a3l([-40, 0, 0])
         else:
-            local_offset = a3l([-20,20*np.sign(-angle),0])
-        '''
+            local_offset = a3l([-20, 25 * special_sauce(angle, 10) ,0])
+        
 
-        offset = world(agent.player.orient_m, a3l([0,0,0]), local_offset)
-        target = bounce + offset
+        target = world(agent.player.orient_m, bounce, local_offset)
 
         # Drive to the target.
         agent.ctrl = precise(agent, target, time)
 
-        '''
-        relative_ball = local(agent.player.orient_m, agent.player.pos, agent.ball.pos)
-        flick_sweetspot = a3l([40,0,135])
-        flick_distance = np.linalg.norm(flick_sweetspot - relative_ball)
-        goal_distance = np.linalg.norm(opponent_goal - agent.player.pos)
+        #relative_ball = local(agent.player.orient_m, agent.player.pos, agent.ball.pos)
+        #flick_sweetspot = a3l([40,0,135])
+        #flick_distance = np.linalg.norm(flick_sweetspot - relative_ball)
+        #goal_distance = np.linalg.norm(opponent_goal - agent.player.pos)
         
         # Flick if the angle is small and the distance is right.
-        if abs(angle) < 0.2 and flick_distance < 15 and (2000 < goal_distance < 5000):
-            self.expired = True
-            agent.state = Flick('BACKFLICK')
-        '''
+        #if abs(angle) < 0.2 and flick_distance < 15 and (2000 < goal_distance < 5000):
+        #    self.expired = True
+        #    agent.state = Flick('BACKFLICK')
 
         # Rendering.
         agent.renderer.begin_rendering('State')
@@ -219,8 +289,6 @@ class Flick(BaseState):
     def execute(self, agent):
         # TODO redo this in terms of relative positions and stuff.
         if self.flick_type == 'BACKFLICK':
-            pass
-            '''
             if self.timer < 0.1:
                 pass
             elif self.timer < 0.3:
@@ -240,15 +308,69 @@ class Flick(BaseState):
                 agent.ctrl.pitch = 1
             else:
                 self.expired = True
-            '''
+            
+        agent.renderer.begin_rendering('State')
+        agent.renderer.end_rendering()
+
+        self.timer += agent.dt
+        super().execute(agent)
+
+
+
+class Dodge(BaseState):
+    def __init__(self, target_pos):
+        super().__init__()
+        self.target_pos = target_pos
+        self.timer = 0.0
+
+    def execute(self, agent):
+        if self.timer < 0.1:
+            agent.ctrl.jump = True
+        elif self.timer < 0.2:
+            agent.ctrl.jump = False
+            agent.ctrl.pitch = -0.5
+        elif self.timer < 0.3:
+            agent.ctrl.jump = True
+            agent.ctrl.pitch = -1        
+        else:
+            self.expired = True
 
         agent.renderer.begin_rendering('State')
         agent.renderer.end_rendering()
 
         self.timer += agent.dt
         super().execute(agent)
-        
 
+
+
+class SimplePush(BaseState):
+
+    def execute(self, agent):
+        goal = orange_inside_goal * team_sign(agent.team) 
+
+        # Calculate distance to ball.
+        distance = np.linalg.norm(agent.ball.pos - agent.player.pos)
+
+        # Find directions based on where we want to hit the ball.
+        direction_to_hit = normalise(goal - agent.ball.pos)
+        perpendicular_to_hit = np.cross(direction_to_hit, a3l([0,0,1]))
+
+        # Calculating component lengths and multiplying with direction.
+        perpendicular_component = perpendicular_to_hit * cap(np.dot(perpendicular_to_hit, agent.ball.pos), -distance/2, distance/2)
+        in_direction_component = -direction_to_hit * 2*distance/3
+
+        # Combine components to get a drive target.
+        target = agent.ball.pos + in_direction_component + perpendicular_component
+
+        agent.ctrl = simple(agent, target)
+
+        agent.renderer.begin_rendering('State')
+        agent.renderer.draw_rect_3d(target, 10, 10, True, agent.renderer.cyan())
+        agent.renderer.end_rendering()
+
+        self.expired = True
+        super().execute(agent)
+        
 
 class GetBoost(BaseState):
     @staticmethod
@@ -276,7 +398,7 @@ class GetBoost(BaseState):
 # CONTROLLERS:
 
 def simple(agent, target):
-
+    # TODO Docstring
     ctrl = SimpleControllerState()
 
     # Calculates angle to target.
@@ -292,15 +414,14 @@ def simple(agent, target):
     # Handbrake if large angle.
     if abs(angle) > 1.65:
         ctrl.handbrake = True
-
-    # Boost if small angle.
-    elif abs(angle) < 0.5:
-        ctrl.boost = 1
+    elif abs(angle) < 0.3:
+        ctrl.boost = True
 
     return ctrl
 
 
 def precise(agent, target, time):
+    # TODO Docstring
     ctrl = SimpleControllerState()
 
     # Calculates angle to target.

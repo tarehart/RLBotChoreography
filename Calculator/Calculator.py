@@ -7,7 +7,7 @@ from rlbot.utils.structures.game_data_struct import GameTickPacket
 # Local file imports.
 import data
 from utils import np, a3l, normalise, local, cap, team_sign, special_sauce
-from states import Idle, Kickoff, Catch, PickUp, Dribble #, GetBoost
+from states import Idle, Kickoff, Catch, PickUp, Dribble, SimplePush
 
 class Calculator(BaseAgent):
 
@@ -25,6 +25,9 @@ class Calculator(BaseAgent):
                 self.state = PickUp()
             elif Catch.available(self):
                 self.state = Catch()
+            else:
+                self.state = SimplePush()
+            
             #elif GetBoost.available(self):
                 #self.state = GetBoost()
             #else:
@@ -57,5 +60,5 @@ class Calculator(BaseAgent):
     def render(self, r):
         r.begin_rendering()
         r.draw_string_2d(10, 10, 2, 2, f'{self.state.__class__.__name__}', r.white())
-        r.draw_polyline_3d(self.ball.predict.pos, r.pink())
+        r.draw_polyline_3d(self.ball.predict.pos[::10], r.pink())
         r.end_rendering()

@@ -16,11 +16,11 @@ class DribbleGrader(CompoundGrader):
         super().__init__([
             PassOnGoalForAllyTeam(ally_team),
             FailOnTimeout(timeout_seconds),
-            FailOnDropBallAfterTimeoutNotNearGoal(),
+            FailOnDropBallNotNearGoal(),
         ])
 
 @dataclass
-class FailOnDropBallAfterTimeoutNotNearGoal(Grader):
+class FailOnDropBallNotNearGoal(Grader):
 
     def __init__(self):
         super().__init__()
@@ -43,7 +43,7 @@ class FailOnDropBallAfterTimeoutNotNearGoal(Grader):
         distance_to_goal = ((ball.x - goal.x)**2 + (ball.y - goal.y)**2)**0.5
 
         # If the ball touches the ground not close to the goal.
-        if self.dribble_started and ball.z < 100 and distance_to_goal > 1250:
+        if self.dribble_started and ball.z < 100 and distance_to_goal > 1250 and ball.x != 0:
             return self.FailDueToDroppedBall()
         else:
             return None
