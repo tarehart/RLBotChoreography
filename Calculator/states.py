@@ -129,8 +129,13 @@ class Catch(BaseState):
                 # Select the first good position and time.
                 bounce = bounces[good_time][0] * a3l([1,1,0])
                 direction = normalise(agent.player.pos * a3l([1,1,0]) - bounce)
-                self.target_pos = bounce + direction*40
+
+                self.target_pos = bounce + direction*30
                 self.target_time = times[good_time][0]
+
+                if bounce[0] * team_sign(agent.team) > 5000:
+                    self.target_pos[0] += 30 * normalise(bounce - orange_inside_goal*team_sign(agent.team))
+                
 
         # Expires state if too late.
         elif self.target_time < agent.game_time:
@@ -143,7 +148,6 @@ class Catch(BaseState):
             # Rendering.
             agent.renderer.begin_rendering('State')
             agent.renderer.draw_rect_3d(self.target_pos, 10, 10, True, agent.renderer.cyan())
-            agent.renderer.draw_polyline_3d((agent.ball.pos, self.target_pos, agent.player.pos), agent.renderer.white())
             agent.renderer.end_rendering()
 
         super().execute(agent)
@@ -172,8 +176,23 @@ class PickUp(BaseState):
     def available(agent):
         small_z_vel = np.abs(agent.ball.predict.vel[:,2]) < 10
         on_ground = agent.ball.predict.pos[:,2] < 100
+        distance = np.linalg.norm(agent.player.vel - orange_inside_goal*team_sign(agent.team))
 
-        return np.count_nonzero(small_z_vel & on_ground) > 60 and agent.ball.pos[2] < 100
+        # Calculates some angles to determine where to place the offset.
+        opponent_goal = orange_inside_goal * team_sign(agent.team)
+        goal_width = 900
+
+        ball_to_left_post = opponent_goal+a3l([goal_width * team_sign(agent.team), 0, 0]) - agent.ball.pos
+        ball_to_right_post = opponent_goal-a3l([goal_width * team_sign(agent.team), 0, 0]) - agent.ball.pos
+
+        # Angles measured clockwise starting left.
+        left_post_angle = np.arctan2(ball_to_left_post[1], ball_to_left_post[0])
+        right_post_angle = np.arctan2(ball_to_right_post[1], ball_to_right_post[0])
+        ball_vel_angle = np.arctan2(agent.ball.vel[1], agent.ball.vel[0])
+
+        good_angle = left_post_angle < ball_vel_angle < right_post_angle
+
+        return agent.ball.pos[2] < 100 and np.count_nonzero(small_z_vel & on_ground) > 60 and not (good_angle and distance < 3000) and distance > 3000
 
     def execute(self, agent):
 
@@ -232,28 +251,34 @@ class Dribble(BaseState):
         time = agent.ball.predict.time[bool_array][0]
         bounce = agent.ball.predict.pos[bool_array][0] * a3l([1,1,0])
 
-        # Calculates angle to opponent's goal
+        # Calculates some angles to determine where to place the offset.
         opponent_goal = orange_inside_goal * team_sign(agent.team)
-        ball_to_goal = (opponent_goal - agent.ball.pos) * a3l([1,1,0])
-        angle = angle_between_vectors(ball_to_goal, agent.ball.vel * a3l([1,1,0])) * np.sign(agent.ball.vel[0]) * team_sign(agent.team)
+        goal_width = 700 # A bit less to account for ball width and error.
 
-        distance = np.linalg.norm(ball_to_goal)
-        goal_angle = np.arctan2(700, distance)
-        #ball_to_left_post = opponent_goal+a3l([800 * team_sign(agent.team), 0, 0]) - agent.ball.pos
-        #ball_to_right_post = opponent_goal-a3l([800 * team_sign(agent.team), 0, 0]) - agent.ball.pos  
-        #angle_left_post = angle_between_vectors(ball_to_goal, ball_to_left_post)
-        #angle_right_post = angle_between_vectors(ball_to_goal, ball_to_right_post)
-        # TODO Work out correct angles.
+        ball_to_left_post = opponent_goal+a3l([goal_width * team_sign(agent.team), 0, 0]) - agent.ball.pos
+        ball_to_right_post = opponent_goal-a3l([goal_width * team_sign(agent.team), 0, 0]) - agent.ball.pos
 
-        # 1 if ball is going left, -1 if ball is going right
-        #np.sign(agent.ball.vel[0]) * team_sign(agent.team)
+        # Angles measured clockwise starting left.
+        left_post_angle = np.arctan2(ball_to_left_post[1], ball_to_left_post[0])
+        right_post_angle = np.arctan2(ball_to_right_post[1], ball_to_right_post[0])
+        ball_vel_angle = np.arctan2(agent.ball.vel[1], agent.ball.vel[0])
 
-        # Create an offset to control the ball.
-        if abs(angle) < goal_angle:
-            local_offset = a3l([-40, 0, 0])
+        # Steer right is the angle is smaller than the left post.
+        if ball_vel_angle < left_post_angle:
+            local_offset = a3l([-20, -30, 0])
+
+        # Steer left if the angle is smaller than the right post.
+        elif ball_vel_angle > right_post_angle:
+            local_offset = a3l([-20, 30, 0])
+
+        # Else speed up forward.
         else:
-            local_offset = a3l([-20, 25 * special_sauce(angle, 10) ,0])
-        
+            local_offset = a3l([-30, 0, 0])
+
+        #if abs(angle) < goal_angle:
+            #local_offset = a3l([-40, 0, 0])
+        #else:
+            #local_offset = a3l([-20, 25 * special_sauce(angle, 10) ,0])
 
         target = world(agent.player.orient_m, bounce, local_offset)
 
@@ -273,7 +298,8 @@ class Dribble(BaseState):
         # Rendering.
         agent.renderer.begin_rendering('State')
         agent.renderer.draw_rect_3d(target, 10, 10, True, agent.renderer.cyan())
-        agent.renderer.draw_polyline_3d((agent.ball.pos, target, agent.player.pos), agent.renderer.white())
+        agent.renderer.draw_line_3d(agent.ball.pos, agent.ball.pos + agent.ball.vel, agent.renderer.red())
+        #agent.renderer.draw_string_2d(500, 500, 2, 2, f'{left_post_angle:.1f} | {ball_vel_angle:.1f} | {right_post_angle:.1f}', agent.renderer.white())
         agent.renderer.end_rendering()
 
         super().execute(agent)
@@ -288,7 +314,12 @@ class Flick(BaseState):
         
     def execute(self, agent):
         # TODO redo this in terms of relative positions and stuff.
-        if self.flick_type == 'BACKFLICK':
+
+        if self.flick_type == 'POP':
+            pass
+
+
+        elif self.flick_type == 'BACKFLICK':
             if self.timer < 0.1:
                 pass
             elif self.timer < 0.3:
@@ -356,7 +387,7 @@ class SimplePush(BaseState):
         perpendicular_to_hit = np.cross(direction_to_hit, a3l([0,0,1]))
 
         # Calculating component lengths and multiplying with direction.
-        perpendicular_component = perpendicular_to_hit * cap(np.dot(perpendicular_to_hit, agent.ball.pos), -distance/2, distance/2)
+        perpendicular_component = perpendicular_to_hit * cap(np.dot(perpendicular_to_hit, agent.ball.pos), -distance/3, distance/3)
         in_direction_component = -direction_to_hit * 2*distance/3
 
         # Combine components to get a drive target.
