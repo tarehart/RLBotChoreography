@@ -12,6 +12,7 @@ from rlbottraining.grading.training_tick_packet import TrainingTickPacket
 
 @dataclass
 class DribbleGrader(CompoundGrader):
+    
     def __init__(self, timeout_seconds = 30, ally_team = 0):
         super().__init__([
             PassOnGoalForAllyTeam(ally_team),
