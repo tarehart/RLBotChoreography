@@ -69,7 +69,7 @@ class Kickoff(BaseState):
             agent.state = Dodge(agent.ball.pos)
 
         # Go for small boost pad on back kickoffs.
-        if self.kickoff_pos in (2,3) and distance > 2950:
+        if self.kickoff_pos in (2,3) and distance > 3200:
             target = a3l([0, -2816, 70]) * team_sign(agent.team)
         else:
             target = agent.ball.pos
@@ -133,8 +133,8 @@ class Catch(BaseState):
                 self.target_pos = bounce + direction*30
                 self.target_time = times[good_time][0]
 
-                if bounce[0] * team_sign(agent.team) > 5000:
-                    self.target_pos[0] += 30 * normalise(bounce - orange_inside_goal*team_sign(agent.team))
+                if bounce[0] * team_sign(agent.team) > 4000:
+                    self.target_pos[0] += 50 * normalise(bounce - orange_inside_goal*team_sign(agent.team))
                 
 
         # Expires state if too late.
@@ -174,25 +174,18 @@ class PickUp(BaseState):
 
     @staticmethod
     def available(agent):
+        # Based on ball prediction and current position.
         small_z_vel = np.abs(agent.ball.predict.vel[:,2]) < 10
-        on_ground = agent.ball.predict.pos[:,2] < 100
-        distance = np.linalg.norm(agent.player.vel - orange_inside_goal*team_sign(agent.team))
+        predicted_roll = agent.ball.predict.pos[:,2] < 100
+        on_ground = agent.ball.pos[2] < 100 and np.count_nonzero(small_z_vel & predicted_roll) > 60
 
         # Calculates some angles to determine where to place the offset.
         opponent_goal = orange_inside_goal * team_sign(agent.team)
-        goal_width = 900
+        distance_to_goal = np.linalg.norm(agent.ball.pos - opponent_goal)
+        distance_to_ball = np.linalg.norm(agent.ball.pos - agent.player.pos )
+        good_distance = distance_to_goal > 4000 and distance_to_ball < 1000
 
-        ball_to_left_post = opponent_goal+a3l([goal_width * team_sign(agent.team), 0, 0]) - agent.ball.pos
-        ball_to_right_post = opponent_goal-a3l([goal_width * team_sign(agent.team), 0, 0]) - agent.ball.pos
-
-        # Angles measured clockwise starting left.
-        left_post_angle = np.arctan2(ball_to_left_post[1], ball_to_left_post[0])
-        right_post_angle = np.arctan2(ball_to_right_post[1], ball_to_right_post[0])
-        ball_vel_angle = np.arctan2(agent.ball.vel[1], agent.ball.vel[0])
-
-        good_angle = left_post_angle < ball_vel_angle < right_post_angle
-
-        return agent.ball.pos[2] < 100 and np.count_nonzero(small_z_vel & on_ground) > 60 and not (good_angle and distance < 3000) and distance > 3000
+        return on_ground and good_distance
 
     def execute(self, agent):
 
@@ -206,12 +199,14 @@ class PickUp(BaseState):
             target = agent.ball.pos
 
         else:
+            opponent_goal = orange_inside_goal * team_sign(agent.team)
+
             # Find components in direction and perpendicular to the ball velocity.
             ball_vel_direction = normalise(agent.ball.vel)
             perpendicular_to_vel = np.cross(ball_vel_direction, a3l([0,0,1]))
 
             # Calculating component lengths and multiplying with direction.
-            perpendicular_component =  120 * perpendicular_to_vel * np.sign(np.dot(perpendicular_to_vel, agent.player.pos))
+            perpendicular_component =  120 * perpendicular_to_vel * np.sign(np.dot(perpendicular_to_vel, agent.ball.pos - opponent_goal))
 
             # Combine components to get a drive target.
             target = agent.ball.pos + agent.ball.vel/20 + perpendicular_component
@@ -253,23 +248,29 @@ class Dribble(BaseState):
 
         # Calculates some angles to determine where to place the offset.
         opponent_goal = orange_inside_goal * team_sign(agent.team)
-        goal_width = 700 # A bit less to account for ball width and error.
+        post_offset = 893 - 200
 
-        ball_to_left_post = opponent_goal+a3l([goal_width * team_sign(agent.team), 0, 0]) - agent.ball.pos
-        ball_to_right_post = opponent_goal-a3l([goal_width * team_sign(agent.team), 0, 0]) - agent.ball.pos
+        l_post = opponent_goal + a3l([post_offset * team_sign(agent.team), 0, 0])
+        r_post = opponent_goal - a3l([post_offset * team_sign(agent.team), 0, 0])
+        ball_to_l_post = l_post - agent.ball.pos
+        ball_to_r_post = r_post - agent.ball.pos
 
-        # Angles measured clockwise starting left.
-        left_post_angle = np.arctan2(ball_to_left_post[1], ball_to_left_post[0])
-        right_post_angle = np.arctan2(ball_to_right_post[1], ball_to_right_post[0])
-        ball_vel_angle = np.arctan2(agent.ball.vel[1], agent.ball.vel[0])
+        # Angles measured clockwise starting from +x direction.
+        l_post_angle = np.arctan2(ball_to_l_post[1], ball_to_l_post[0])
+        r_post_angle = np.arctan2(ball_to_r_post[1], ball_to_r_post[0])
+
+        # Special case for this so it works out nicely.
+        ball_vel_angle = abs(np.arctan2(agent.ball.vel[1], agent.ball.vel[0])) * team_sign(agent.team)
 
         # Steer right is the angle is smaller than the left post.
-        if ball_vel_angle < left_post_angle:
-            local_offset = a3l([-20, -30, 0])
+        if ball_vel_angle < l_post_angle:
+            angle_diff = l_post_angle - ball_vel_angle
+            local_offset = a3l([-20, -30 * special_sauce(angle_diff, -10), 0])
 
         # Steer left if the angle is smaller than the right post.
-        elif ball_vel_angle > right_post_angle:
-            local_offset = a3l([-20, 30, 0])
+        elif ball_vel_angle > r_post_angle:
+            angle_diff = ball_vel_angle - r_post_angle
+            local_offset = a3l([-20, 30 * special_sauce(angle_diff, -10), 0])
 
         # Else speed up forward.
         else:
@@ -299,7 +300,6 @@ class Dribble(BaseState):
         agent.renderer.begin_rendering('State')
         agent.renderer.draw_rect_3d(target, 10, 10, True, agent.renderer.cyan())
         agent.renderer.draw_line_3d(agent.ball.pos, agent.ball.pos + agent.ball.vel, agent.renderer.red())
-        #agent.renderer.draw_string_2d(500, 500, 2, 2, f'{left_post_angle:.1f} | {ball_vel_angle:.1f} | {right_post_angle:.1f}', agent.renderer.white())
         agent.renderer.end_rendering()
 
         super().execute(agent)
@@ -387,8 +387,8 @@ class SimplePush(BaseState):
         perpendicular_to_hit = np.cross(direction_to_hit, a3l([0,0,1]))
 
         # Calculating component lengths and multiplying with direction.
-        perpendicular_component = perpendicular_to_hit * cap(np.dot(perpendicular_to_hit, agent.ball.pos), -distance/3, distance/3)
-        in_direction_component = -direction_to_hit * 2*distance/3
+        perpendicular_component = perpendicular_to_hit * cap(np.dot(perpendicular_to_hit, agent.ball.pos), -distance/4, distance/4)
+        in_direction_component = -direction_to_hit * distance/2
 
         # Combine components to get a drive target.
         target = agent.ball.pos + in_direction_component + perpendicular_component
@@ -406,7 +406,12 @@ class SimplePush(BaseState):
 class GetBoost(BaseState):
     @staticmethod
     def available(agent):
-        return agent.player.boost < 30 and np.linalg.norm(agent.ball.pos - agent.player.pos) > 1000
+        if agent.player.boost < 30:
+            ball_distance = np.linalg.norm(agent.ball.pos - agent.player.pos)
+            for pad in agent.l_pads:
+                if pad.active and np.linalg.norm(pad.pos - agent.player.pos) + 1000 < ball_distance:
+                    return True
+        return False
 
     def execute(self, agent):
 
@@ -418,8 +423,10 @@ class GetBoost(BaseState):
             if np.linalg.norm(pad.pos - agent.player.pos) < np.linalg.norm(closest.pos - agent.player.pos):
                 closest = pad
 
-        agent.ctrl = simple(agent, pad.pos)
+        if not pad.active:
+            self.expired = True
 
+        agent.ctrl = simple(agent, pad.pos)
         super().execute(agent)
 
 
@@ -466,7 +473,9 @@ def precise(agent, target, time):
     towards_target = target - agent.player.pos
     distance = np.linalg.norm(towards_target)
     vel = np.dot(towards_target / distance, agent.player.vel)
-    desired_vel = distance / (time - agent.game_time)
+    time_remaining = time - agent.game_time
+    if time_remaining == 0.0: return ctrl # 0 check so we don't divide by zero and break maths.
+    desired_vel = distance / time_remaining
 
     # If the angle is small, use a speed controller.
     if abs(angle) <= 0.3:
@@ -504,50 +513,48 @@ def speed_controller(current_vel, desired_vel, dt):
         float -- The throttle amount.
         bool -- Whether to boost or not.
     """
-    if dt > 0.0:
-        desired_vel = cap(desired_vel, 0, 2300)
+    if dt == 0.0: return 0.0, False
 
-        # Gets the maximum acceleration based on current velocity.
-        if current_vel < 0:
-            possible_accel = 3500
-        elif current_vel < 1400:
-            possible_accel = (-36/35)*current_vel + 1600
-        elif current_vel < 1410:
-            possible_accel = -16*current_vel + 22560
-        else:
-            possible_accel = 0
+    desired_vel = cap(desired_vel, 0, 2300)
 
-        # Finds the desired change in velocity and 
-        # the desired acceleration for the next tick.
-        dv = desired_vel - current_vel
-        desired_accel = dv / dt
-
-        # If you want to slow down more than coast decceleration, brake.
-        if desired_accel < -525 -1000: # -525 is the coast deccel.
-            throttle = -1
-            boost = False
-
-        # If you want to slow down a little bit, just coast.
-        elif desired_accel < 0:
-            throttle = 0
-            boost = False
-
-        # If you can accelerate just using your throttle, use proportions.
-        elif possible_accel >= desired_accel:
-            throttle = desired_accel / possible_accel
-            boost = False
-
-        # If you want to accelerate more, but less than the minimum you can do with boost (plus a little extra), just drive.
-        elif desired_accel < (possible_accel + 991.667)*3 + 1000:
-            throttle = 1
-            boost = False
-
-        # If you're really in a hurry, boost.
-        else:
-            throttle = 1
-            boost = True
-
-        return throttle, boost
-
+    # Gets the maximum acceleration based on current velocity.
+    if current_vel < 0:
+        possible_accel = 3500
+    elif current_vel < 1400:
+        possible_accel = (-36/35)*current_vel + 1600
+    elif current_vel < 1410:
+        possible_accel = -16*current_vel + 22560
     else:
-        return 1.0, False
+        possible_accel = 0
+
+    # Finds the desired change in velocity and 
+    # the desired acceleration for the next tick.
+    dv = desired_vel - current_vel
+    desired_accel = dv / dt
+
+    # If you want to slow down more than coast decceleration, brake.
+    if desired_accel < -525 -2000: # -525 is the coast deccel.
+        throttle = -1
+        boost = False
+
+    # If you want to slow down a little bit, just coast.
+    elif desired_accel < 0:
+        throttle = 0
+        boost = False
+
+    # If you can accelerate just using your throttle, use proportions.
+    elif possible_accel >= desired_accel:
+        throttle = desired_accel / possible_accel
+        boost = False
+
+    # If you want to accelerate more, but less than the minimum you can do with boost (plus a little extra), just drive.
+    elif desired_accel < (possible_accel + 991.667)*4:
+        throttle = 1
+        boost = False
+
+    # If you're really in a hurry, boost.
+    else:
+        throttle = 1
+        boost = True
+
+    return throttle, boost

@@ -7,7 +7,7 @@ from rlbot.utils.structures.game_data_struct import GameTickPacket
 # Local file imports.
 import data
 from utils import np, a3l, normalise, local, cap, team_sign, special_sauce
-from states import Idle, Kickoff, Catch, PickUp, Dribble, SimplePush
+from states import Idle, Kickoff, Catch, PickUp, Dribble, SimplePush, GetBoost
 
 class Calculator(BaseAgent):
 
@@ -25,13 +25,10 @@ class Calculator(BaseAgent):
                 self.state = PickUp()
             elif Catch.available(self):
                 self.state = Catch()
+            elif GetBoost.available(self):
+                self.state = GetBoost()
             else:
                 self.state = SimplePush()
-            
-            #elif GetBoost.available(self):
-                #self.state = GetBoost()
-            #else:
-                #self.state = Idle()
         
     def get_output(self, packet: GameTickPacket) -> SimpleControllerState:
         # Runs setup.
