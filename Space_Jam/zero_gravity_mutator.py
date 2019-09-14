@@ -18,7 +18,7 @@ KICKOFF_BALL_HEIGHT = 700
 WORLD_GRAVITY = 1E-9 # Basically nothing.
 
 # How much velocity gets applied when the car has wheel contact.
-STICK = 10 # Negative values make you bounce.
+STICK = 0 # Negative values make you bounce.
 
 class Observer():
     def __init__(self):
