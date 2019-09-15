@@ -1,4 +1,5 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Union
 from pathlib import Path
 from math import pi
 
@@ -8,18 +9,37 @@ from rlbot.utils.game_state_util import GameState, BallState, CarState, Physics,
 from rlbot.matchconfig.match_config import Team, PlayerConfig
 
 from rlbottraining.training_exercise import TrainingExercise, Playlist
+from rlbottraining.grading.grader import Grader
 from rlbottraining.rng import SeededRandomNumberGenerator
 
 
-class KickoffExercise(TrainingExercise):
 
-    def __init__(self, name, kickoffs):
-        super().__init__(name, grader=QuickResetKickoffGrader())
-        self.kickoffs = kickoffs
+
+@dataclass
+class KickoffType:
+    pos: Vector3
+    rot: Rotator
+
+# Default kickoffs.
+right_corner = KickoffType(Vector3(-2048, -2560, 18), Rotator(0, 0.25*pi, 0))
+left_corner = KickoffType(Vector3(2048, -2560, 18), Rotator(0, 0.75*pi, 0))
+back_right = KickoffType(Vector3(-256, -3840, 18), Rotator(0, 0.5*pi, 0))
+back_left = KickoffType(Vector3(256.0, -3840, 18), Rotator(0, 0.5*pi, 0))
+straight = KickoffType(Vector3(0, -4608, 18), Rotator(0, 0.5*pi, 0))
+
+
+@dataclass
+class KickoffExercise(TrainingExercise):
+    grader : Grader = field(default_factory=QuickResetKickoffGrader)
+    kickoffs : Union[tuple,list] = ()
 
     def make_game_state(self, rng: SeededRandomNumberGenerator) -> GameState:
+
+        num_players = self.match_config.num_players
+        assert num_players == len(self.kickoffs), 'Number of players does not match the number of kickoffs given.'
+
         car_states = {}
-        for index in range(len(self.kickoffs)):
+        for index in range(num_players):
             car_states[index] = CarState(
                 boost_amount=33,
                 physics=Physics(
@@ -41,19 +61,6 @@ class KickoffExercise(TrainingExercise):
 
         game_state = GameState(ball=ball_state, cars=car_states)
         return game_state
-
-
-@dataclass
-class KickoffType:
-    pos: Vector3
-    rot: Rotator
-
-# Default kickoffs.
-right_corner = KickoffType(Vector3(-2048, -2560, 18), Rotator(0, 0.25*pi, 0))
-left_corner = KickoffType(Vector3(2048, -2560, 18), Rotator(0, 0.75*pi, 0))
-back_right = KickoffType(Vector3(-256, -3840, 18), Rotator(0, 0.5*pi, 0))
-back_left = KickoffType(Vector3(256.0, -3840, 18), Rotator(0, 0.5*pi, 0))
-straight = KickoffType(Vector3(0, -4608, 18), Rotator(0, 0.5*pi, 0))
 
 
 def make_default_playlist() -> Playlist:
