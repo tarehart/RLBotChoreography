@@ -11,7 +11,7 @@ from rlbottraining.common_graders.timeout import FailOnTimeout
 from rlbottraining.grading.training_tick_packet import TrainingTickPacket
 
 @dataclass
-class QuickResetKickoffGrader(CompoundGrader):
+class KickoffGrader(CompoundGrader):
 
     def __init__(self, timeout_seconds = 4.5, min_exercise_duration = 4, min_ball_displacement = 100):
         super().__init__([

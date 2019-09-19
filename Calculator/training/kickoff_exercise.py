@@ -3,10 +3,12 @@ from math import pi
 from pathlib import Path
 from typing import List, Tuple
 
+from rlbot.matchcomms.common_uses.reply import send_and_wait_for_replies
+from rlbot.matchcomms.common_uses.set_attributes_message import make_set_attributes_message
 from rlbot.matchconfig.match_config import MatchConfig, PlayerConfig, Team
 from rlbot.utils.game_state_util import BallState, CarState, GameState, Physics, Rotator, Vector3
 
-from kickoff_grader import QuickResetKickoffGrader
+from kickoff_grader import KickoffGrader
 from rlbottraining.grading.grader import Grader
 from rlbottraining.match_configs import make_empty_match_config
 from rlbottraining.paths import BotConfigs
@@ -31,8 +33,23 @@ class Spawns():
 
 @dataclass
 class KickoffExercise(TrainingExercise):
-    grader: Grader = field(default_factory=QuickResetKickoffGrader)
-    spawns: List[SpawnLocation] = field(default_factory=list)
+    grader: Grader = field(default_factory=KickoffGrader)
+    blue_spawns: List[SpawnLocation] = field(default_factory=list)
+    orange_spawns: List[SpawnLocation] = field(default_factory=list)
+
+    def __post_init__(self):
+        """Flip the orange spawns around to get the correct location and combine the two spawns."""
+        orange_spawns = [
+            SpawnLocation(Vector3(-spawn.pos.x, -spawn.pos.y, spawn.pos.z),
+            Rotator(spawn.rot.pitch, spawn.rot.yaw+pi, spawn.rot.roll))
+            for spawn in self.orange_spawns]
+        self.spawns = self.blue_spawns + orange_spawns
+
+    def on_briefing(self):
+        """Sends a match comm to let your bot know a new kickoff is starting."""
+        _ = send_and_wait_for_replies(self.get_matchcomms(), [
+            make_set_attributes_message(0, {'kickoff': True}),
+        ])
 
     def make_game_state(self, rng: SeededRandomNumberGenerator) -> GameState:
 
@@ -67,21 +84,22 @@ class KickoffExercise(TrainingExercise):
 def make_default_playlist() -> Playlist:
 
     # Choose which spawns you want to test.
-    # The length of spawns should match the number of players in the match_config.
-
     exercises = [
-        #KickoffExercise('Both Corners', spawns=[Spawns.CORNER_R, Spawns.CORNER_L]),
-        KickoffExercise('Right Corner', spawns=[Spawns.CORNER_R]),
-        KickoffExercise('Left Corner', spawns=[Spawns.CORNER_L]),
-        KickoffExercise('Back Right', spawns=[Spawns.BACK_R]),
-        KickoffExercise('Back Left', spawns=[Spawns.BACK_L]),
-        KickoffExercise('Straight', spawns=[Spawns.STRAIGHT]),
+        #KickoffExercise('Both Corners', blue_spawns=[Spawns.CORNER_R, Spawns.CORNER_L], orange_spawns = []),
+        #KickoffExercise('Right Corner 50/50', blue_spawns=[Spawns.CORNER_R], orange_spawns = [Spawns.CORNER_R]),
+        KickoffExercise('Right Corner', blue_spawns=[Spawns.CORNER_R], orange_spawns = []),
+        KickoffExercise('Left Corner', blue_spawns=[Spawns.CORNER_L], orange_spawns = []),
+        KickoffExercise('Back Right', blue_spawns=[Spawns.BACK_R], orange_spawns = []),
+        KickoffExercise('Back Left', blue_spawns=[Spawns.BACK_L], orange_spawns = []),
+        KickoffExercise('Straight', blue_spawns=[Spawns.STRAIGHT], orange_spawns = []),
     ]
 
     for ex in exercises:
-        ex.match_config.player_configs = [
-            # Replace with path to your bot.
-            PlayerConfig.bot_config(BotConfigs.simple_bot, Team.BLUE) for _ in ex.spawns
-        ]
+        # The length of players in the match_config needs to match the number or spawns.
+
+        # Replace with path to your bot or bots. 
+        ex.match_config.player_configs = \
+        [PlayerConfig.bot_config(Path(__file__).absolute().parent.parent / 'Calculator.cfg', Team.BLUE) for _ in ex.blue_spawns] + \
+        [PlayerConfig.bot_config(Path(__file__).absolute().parent.parent / 'Calculator.cfg', Team.ORANGE) for _ in ex.orange_spawns]
 
     return exercises
