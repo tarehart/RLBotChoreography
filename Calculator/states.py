@@ -2,7 +2,7 @@
 
 from rlbot.agents.base_agent import SimpleControllerState
 
-from utils import np, a3l, local, world, angle_between_vectors, normalise, cap, team_sign, special_sauce
+from utils import np, a3l, local, world, angle_between_vectors, normalise, cap, team_sign, linear_predict, special_sauce
 
 orange_inside_goal = a3l([0, 5150, 0])
 
@@ -286,13 +286,27 @@ class Dribble(BaseState):
         # Drive to the target.
         agent.ctrl = precise(agent, target, time)
 
+        if len(agent.opponents) > 0:
+            me = agent.player
+            me_prediction = linear_predict(me.pos, me.vel, agent.game_time, 2)
+            op = agent.opponents[0]
+            op_prediction = linear_predict(op.pos, op.vel, agent.game_time, 2)
+
+            vectors = me_prediction.pos - op_prediction.pos
+            distances = np.sqrt(np.einsum('ij,ij->i', vectors, vectors))
+            collision = distances < 250
+            if np.count_nonzero(collision) > 0:
+                if op_prediction.time[collision][0] - agent.game_time < 0.5:
+                    self.expire = True
+                    agent.state = Flick('POP')
+
         #relative_ball = local(agent.player.orient_m, agent.player.pos, agent.ball.pos)
         #flick_sweetspot = a3l([40,0,135])
         #flick_distance = np.linalg.norm(flick_sweetspot - relative_ball)
         #goal_distance = np.linalg.norm(opponent_goal - agent.player.pos)
         
         # Flick if the angle is small and the distance is right.
-        #if abs(angle) < 0.2 and flick_distance < 15 and (2000 < goal_distance < 5000):
+        #if flick_distance < 15 and (2000 < goal_distance < 5000):
         #    self.expired = True
         #    agent.state = Flick('BACKFLICK')
 
@@ -300,6 +314,8 @@ class Dribble(BaseState):
         agent.renderer.begin_rendering('State')
         agent.renderer.draw_rect_3d(target, 10, 10, True, agent.renderer.cyan())
         agent.renderer.draw_line_3d(agent.ball.pos, agent.ball.pos + agent.ball.vel, agent.renderer.red())
+        agent.renderer.draw_polyline_3d(op_prediction.pos[::60], agent.renderer.red())
+        #agent.renderer.draw_string_2d(400, 400, 3, 3, f'{np.count_nonzero(collision)}', agent.renderer.red())
         agent.renderer.end_rendering()
 
         super().execute(agent)
@@ -316,7 +332,14 @@ class Flick(BaseState):
         # TODO redo this in terms of relative positions and stuff.
 
         if self.flick_type == 'POP':
-            pass
+            if self.timer < 0.1:
+                agent.ctrl.jump = True
+            elif self.timer < 0.2:
+                agent.ctrl.jump = False
+            elif self.timer < 0.3:
+                agent.ctrl.jump = True
+            else:
+                self.expired = True
 
 
         elif self.flick_type == 'BACKFLICK':
@@ -387,7 +410,7 @@ class SimplePush(BaseState):
         perpendicular_to_hit = np.cross(direction_to_hit, a3l([0,0,1]))
 
         # Calculating component lengths and multiplying with direction.
-        perpendicular_component = perpendicular_to_hit * cap(np.dot(perpendicular_to_hit, agent.ball.pos), -distance/4, distance/4)
+        perpendicular_component = perpendicular_to_hit * cap(np.dot(perpendicular_to_hit, agent.ball.pos), -distance/6, distance/6)
         in_direction_component = -direction_to_hit * distance/2
 
         # Combine components to get a drive target.

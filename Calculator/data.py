@@ -97,24 +97,22 @@ def process(self, packet):
         #teammate.turn_r     = turn_r(teammate.vel)
     '''
 
-    '''
     # Processing opponents.
     for opponent in self.opponents:
         # From packet:
         opponent.pos        = a3v(packet.game_cars[opponent.index].physics.location)
-        opponent.rot        = a3r(packet.game_cars[opponent.index].physics.rotation)
+        #opponent.rot        = a3r(packet.game_cars[opponent.index].physics.rotation)
         opponent.vel        = a3v(packet.game_cars[opponent.index].physics.velocity)
-        opponent.ang_vel    = a3v(packet.game_cars[opponent.index].physics.angular_velocity)
-        opponent.dead       = packet.game_cars[opponent.index].is_demolished
-        opponent.wheel_c    = packet.game_cars[opponent.index].has_wheel_contact
-        opponent.sonic      = packet.game_cars[opponent.index].is_super_sonic
-        opponent.jumped     = packet.game_cars[opponent.index].jumped
-        opponent.d_jumped   = packet.game_cars[opponent.index].double_jumped
-        opponent.boost      = packet.game_cars[opponent.index].boost
+        #opponent.ang_vel    = a3v(packet.game_cars[opponent.index].physics.angular_velocity)
+        #opponent.dead       = packet.game_cars[opponent.index].is_demolished
+        #opponent.wheel_c    = packet.game_cars[opponent.index].has_wheel_contact
+        #opponent.sonic      = packet.game_cars[opponent.index].is_super_sonic
+        #opponent.jumped     = packet.game_cars[opponent.index].jumped
+        #opponent.d_jumped   = packet.game_cars[opponent.index].double_jumped
+        #opponent.boost      = packet.game_cars[opponent.index].boost
         # Calculated:
         #opponent.orient_m   = orient_matrix(opponent.rot)
         #opponent.turn_r     = turn_r(opponent.vel)
-    '''
 
     # Processing Ball data.
     self.ball.pos       = a3v(packet.game_ball.physics.location)

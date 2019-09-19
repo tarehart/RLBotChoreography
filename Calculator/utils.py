@@ -326,6 +326,13 @@ def turn_r(v : np.ndarray) -> float:
     s = np.linalg.norm(v)
     return -6.901E-11 * s**4 + 2.1815E-07 * s**3 - 5.4437E-06 * s**2 + 0.12496671 * s + 157
 
+def linear_predict(start_pos, start_vel, start_time, seconds) -> Prediction:
+    time = np.linspace(0, seconds, 60*seconds)[:,np.newaxis]
+    pos = start_pos + time * start_vel
+    vel = np.ones_like(time) * start_vel
+    time += start_time
+    return Prediction(pos, vel, time)
+
 # -----------------------------------------------------------
 
 # OTHER:

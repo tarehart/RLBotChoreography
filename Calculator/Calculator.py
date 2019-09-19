@@ -9,11 +9,17 @@ import data
 from utils import np, a3l, normalise, local, cap, team_sign, special_sauce
 from states import Idle, Kickoff, Catch, PickUp, Dribble, SimplePush, GetBoost
 
+#from queue import Empty
+#from rlbot.matchcomms.common_uses.reply import reply_to
+#from rlbot.matchcomms.common_uses.set_attributes_message import handle_set_attributes_message
+
 class Calculator(BaseAgent):
 
     def initialize_agent(self):
         self.need_setup = True
         self.state = Idle()
+
+        self.kickoff = False
 
     def checkState(self):
         if self.state.expired:
@@ -29,6 +35,18 @@ class Calculator(BaseAgent):
                 self.state = GetBoost()
             else:
                 self.state = SimplePush()
+
+    def handle_match_comms(self):
+        try:
+            msg = self.matchcomms.incoming_broadcast.get_nowait()
+        except Empty:
+            return
+        if handle_set_attributes_message(msg, self, allowed_keys=['kickoff']):
+            reply_to(self.matchcomms, msg)
+            self.state = Kickoff()
+            self.kickoff = False
+        else:
+            self.logger.debug(f'Unhandled message: {msg}')
         
     def get_output(self, packet: GameTickPacket) -> SimpleControllerState:
         # Runs setup.
@@ -43,6 +61,8 @@ class Calculator(BaseAgent):
 
         # Handle states.
         self.checkState()
+
+        #self.handle_match_comms()
 
         # Execute state.
         if not self.state.expired:
