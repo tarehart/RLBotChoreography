@@ -1,8 +1,0 @@
-Discord Name: Calculated_Will#4544
-Bot Name: Calculator
-Bot Requirements/Setup Instructions: Python; math; RLUtilities
-Entering the 1v1 bracket? yes
-Fun Facts/Information you'd like the caster to know:
-- Focuses on kickoffs. (Hopefully they work)
-- Started making code on the 1 st of March.
-- Sometimes breaks the meta.

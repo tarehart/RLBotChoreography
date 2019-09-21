@@ -1,3 +1,0 @@
-rlbot
-numpy
-scipy
