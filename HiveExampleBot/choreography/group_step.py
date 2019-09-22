@@ -17,11 +17,14 @@ class GroupStep:
 
 
 class LambdaStep(GroupStep):
-    def __init__(self, fn: Callable[[GameTickPacket, List[Drone]], StepResult]):
+    def __init__(self, fn: Callable[[GameTickPacket, List[Drone], float], StepResult]):
         self.fn = fn
+        self.start_time = None
 
     def perform(self, packet, drones):
-        return self.fn(packet, drones)
+        if not self.start_time:
+            self.start_time = packet.game_info.seconds_elapsed
+        return self.fn(packet, drones, self.start_time)
 
 
 class SynchronizedBehaviorStep(GroupStep):

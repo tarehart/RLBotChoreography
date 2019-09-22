@@ -1,5 +1,16 @@
+"""RLBotChoreography
+
+Usage:
+    choreograph [--min-bots=<min>] [--bot-folder=<folder>]
+
+Options:
+    --min-bots=<min>             The minimum number of bots to spawn [default: 10].
+    --bot-folder=<folder>        Searches this folder for bot configs to use for names and appearances [default: .].
+"""
 import copy
 import os
+import sys
+from docopt import docopt
 
 from rlbot.matchconfig.conversions import parse_match_config
 from rlbot.parsing.agent_config_parser import load_bot_appearance
@@ -7,7 +18,11 @@ from rlbot.parsing.directory_scanner import scan_directory_for_bot_configs
 from rlbot.parsing.rlbot_config_parser import create_bot_config_layout
 from rlbot.setup_manager import SetupManager
 
+from hivemind import ExampleHivemind
+
 if __name__ == '__main__':
+
+    arguments = docopt(__doc__)
 
     # Set up RLBot.cfg
     framework_config = create_bot_config_layout()
@@ -15,21 +30,26 @@ if __name__ == '__main__':
     framework_config.parse_file(config_location, max_index=64)
     match_config = parse_match_config(framework_config, config_location, {}, {})
 
-    bundles = scan_directory_for_bot_configs("C:/Users/tareh/code/LeaguePlay/bots")
+    min_bots = int(arguments['--min-bots'])
+    bot_directory = arguments['--bot-folder']
+
+    bundles = scan_directory_for_bot_configs(bot_directory)
     looks_configs = {idx: bundle.get_looks_config() for idx, bundle in enumerate(bundles)}
     names = [bundle.name for bundle in bundles]
 
     player_config = match_config.player_configs[0]
     match_config.player_configs.clear()
-    for i in range(len(bundles)):
+    for i in range(max(len(bundles), min_bots)):
         copied = copy.copy(player_config)
-        copied.name = names[i]
-        copied.loadout_config = load_bot_appearance(looks_configs[i], 0)
+        if i < len(bundles):
+            copied.name = names[i]
+            copied.loadout_config = load_bot_appearance(looks_configs[i], 0)
         match_config.player_configs.append(copied)
 
     manager = SetupManager()
     manager.load_match_config(match_config, {})
     manager.connect_to_game()
     manager.start_match()
-    manager.launch_bot_processes()
-    manager.infinite_loop()  # Runs forever until interrupted
+
+    hivemind = ExampleHivemind()
+    hivemind.start()
