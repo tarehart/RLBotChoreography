@@ -39,7 +39,7 @@ class LightfallChoreography(Choreography):
 
     def wave_jump(self, packet, drone, start_time) -> StepResult:
         elapsed = packet.game_info.seconds_elapsed - start_time
-        jump_start = drone.index * 0.1
+        jump_start = drone.index * 0.06
         jump_end = jump_start + .5
         drone.ctrl = SimpleControllerState(jump=jump_start < elapsed < jump_end)
         wheel_contact = packet.game_cars[drone.index].has_wheel_contact
@@ -57,9 +57,9 @@ class LightfallChoreography(Choreography):
 
     def line_up(self, packet, drones, start_time) -> StepResult:
         start_x = -2000
-        start_y = -2000
-        start_z = 40
         y_increment = 100
+        start_y = -len(drones) * y_increment / 2
+        start_z = 40
         car_states = {}
         for drone in drones:
             car_states[drone.index] = CarState(
@@ -71,14 +71,15 @@ class LightfallChoreography(Choreography):
 
     def place_on_ceiling(self, packet, drones, start_time) -> StepResult:
         start_x = 2000
-        start_y = -2000
-        start_z = 1900
         y_increment = 100
+        start_y = -len(drones) * y_increment / 2
+        start_z = 1900
         car_states = {}
         for drone in drones:
             car_states[drone.index] = CarState(
                 Physics(location=Vector3(start_x, start_y + drone.index * y_increment, start_z),
                         velocity=Vector3(0, 0, 0),
+                        angular_velocity=Vector3(0, 0, 0),
                         rotation=Rotator(math.pi * 1, 0, 0)))
         self.game_interface.set_game_state(GameState(cars=car_states))
         return StepResult(finished=True)
@@ -90,5 +91,8 @@ class LightfallChoreography(Choreography):
         return StepResult(finished=wheel_contact)
 
     def move_ball(self, packet, drones, start_time) -> StepResult:
-        self.game_interface.set_game_state(GameState(ball=BallState(physics=Physics(location=Vector3(10000, 0, 0)))))
+        self.game_interface.set_game_state(GameState(ball=BallState(physics=Physics(
+            location=Vector3(0, 0, 3000),
+            velocity=Vector3(0, 0, 0),
+            angular_velocity=Vector3(0, 0, 0)))))
         return StepResult(finished=True)

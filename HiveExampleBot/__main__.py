@@ -17,6 +17,7 @@ from rlbot.parsing.agent_config_parser import load_bot_appearance
 from rlbot.parsing.directory_scanner import scan_directory_for_bot_configs
 from rlbot.parsing.rlbot_config_parser import create_bot_config_layout
 from rlbot.setup_manager import SetupManager
+from rlbot.utils.structures.start_match_structures import MAX_PLAYERS
 
 from hivemind import ExampleHivemind
 
@@ -24,16 +25,16 @@ if __name__ == '__main__':
 
     arguments = docopt(__doc__)
 
+    min_bots = min(int(arguments['--min-bots']), MAX_PLAYERS)
+    bot_directory = arguments['--bot-folder']
+    bundles = scan_directory_for_bot_configs(bot_directory)
+
     # Set up RLBot.cfg
     framework_config = create_bot_config_layout()
     config_location = os.path.realpath('rlbot.cfg')
-    framework_config.parse_file(config_location, max_index=64)
+    framework_config.parse_file(config_location, max_index=MAX_PLAYERS)
     match_config = parse_match_config(framework_config, config_location, {}, {})
 
-    min_bots = int(arguments['--min-bots'])
-    bot_directory = arguments['--bot-folder']
-
-    bundles = scan_directory_for_bot_configs(bot_directory)
     looks_configs = {idx: bundle.get_looks_config() for idx, bundle in enumerate(bundles)}
     names = [bundle.name for bundle in bundles]
 
