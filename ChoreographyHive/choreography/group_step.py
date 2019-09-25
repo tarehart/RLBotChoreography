@@ -16,7 +16,12 @@ class GroupStep:
         pass
 
 
-class LambdaStep(GroupStep):
+class DroneListStep(GroupStep):
+    """
+    Takes a function that receives the entire drone list. More powerful but less
+    convenient than PerDroneStep. It should be possible to accomplish almost anything
+    with this one.
+    """
     def __init__(self, fn: Callable[[GameTickPacket, List[Drone], float], StepResult]):
         self.fn = fn
         self.start_time = None
@@ -27,7 +32,11 @@ class LambdaStep(GroupStep):
         return self.fn(packet, drones, self.start_time)
 
 
-class SynchronizedBehaviorStep(GroupStep):
+class PerDroneStep(GroupStep):
+    """
+    Takes a function and applies it to every drone individually. They can still behave differently
+    because you have access to the drone's index, position, velocity, etc.
+    """
     def __init__(self, bot_fn: Callable[[GameTickPacket, Drone, float], StepResult], max_duration: float):
         self.bot_fn = bot_fn
         self.max_duration = max_duration
@@ -48,7 +57,11 @@ class SynchronizedBehaviorStep(GroupStep):
         return StepResult(finished=finished)
 
 
-class BlindBehaviorStep(SynchronizedBehaviorStep):
+class BlindBehaviorStep(PerDroneStep):
+    """
+    For every drone in the list, output the given controls for the specified duration.
+    For example you could make everyone to boost simultaneously for .5 seconds.
+    """
     def __init__(self, controls: SimpleControllerState, duration: float):
         super().__init__(self.blind, duration)
         self.controls = controls

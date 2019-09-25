@@ -19,7 +19,7 @@ from rlbot.parsing.rlbot_config_parser import create_bot_config_layout
 from rlbot.setup_manager import SetupManager
 from rlbot.utils.structures.start_match_structures import MAX_PLAYERS
 
-from hivemind import ExampleHivemind
+from hivemind import Hivemind
 
 if __name__ == '__main__':
 
@@ -31,7 +31,7 @@ if __name__ == '__main__':
 
     # Set up RLBot.cfg
     framework_config = create_bot_config_layout()
-    config_location = os.path.realpath('rlbot.cfg')
+    config_location = os.path.join(os.path.dirname(__file__), 'rlbot.cfg')
     framework_config.parse_file(config_location, max_index=MAX_PLAYERS)
     match_config = parse_match_config(framework_config, config_location, {}, {})
 
@@ -44,6 +44,8 @@ if __name__ == '__main__':
         copied = copy.copy(player_config)
         if i < len(bundles):
             copied.name = names[i]
+            # If you want to override bot appearances to get a certain visual effect, e.g. with
+            # specific boost colors, this is a good place to do it.
             copied.loadout_config = load_bot_appearance(looks_configs[i], 0)
         match_config.player_configs.append(copied)
 
@@ -52,5 +54,5 @@ if __name__ == '__main__':
     manager.connect_to_game()
     manager.start_match()
 
-    hivemind = ExampleHivemind()
+    hivemind = Hivemind()
     hivemind.start()

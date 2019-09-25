@@ -9,43 +9,19 @@ from choreography.lightfall_choreography import LightfallChoreography
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 
 import time
-import numpy as np
 from rlbot.agents.base_agent import SimpleControllerState
 
 from rlbot.utils.logging_utils import get_logger
 from rlbot.utils.structures.game_data_struct import GameTickPacket, FieldInfoPacket
-from rlbot.utils.structures.ball_prediction_struct import BallPrediction
 from rlbot.utils.structures.game_interface import GameInterface
 
 from choreography.drone import Drone
 
-PI = np.pi
 
-# -----------------------------------------------------------
-
-# PARAMETERS:
-
-# Distance parameters for the range in which it will consider pinching.
-CLOSEST = 1500.0
-FARTHEST = 3500.0
-
-# Extra time buffer.
-# Gives time for drones to better align in PINCH state since they'll have more time.
-TIME_BUFFER = 0.5
-
-# Pessimistic time error.
-# Makes drones start this bit earlier than they think they need to.
-TIME_ERROR = -0.1
-
-
-# Additional tweakable positions starting on line 187 for where bots will wait.
-# More tweakable values directly in the controllers at the bottom.
-
-# -----------------------------------------------------------
-
-# THE HIVEMIND:
-
-class ExampleHivemind:
+class Hivemind:
+    """
+    Sends and receives data from Rocket League, and maintains the list of drones.
+    """
 
     # Some terminology:
     # hivemind = the process which controls the drones.
@@ -60,15 +36,10 @@ class ExampleHivemind:
         # like ball prediction, the game tick packet, or rendering.
         self.game_interface = GameInterface(self.logger)
 
-        # Running indices is a set of bot indices
-        # which requested this hivemind with the same key.
-        self.running_indices = set()
+        self.drones = []
 
         self.lightfall_choreography = LightfallChoreography(self.game_interface)
         self.lightfall_choreography.generate_sequence()
-
-        # self.hot_reloader = HotReloader(
-        #     os.path.join(os.path.dirname(__file__), 'choreography/lightfall_choreography.py'), Choreography)
 
     def start(self):
         """Runs once, sets up the hivemind and its agents."""
@@ -89,10 +60,6 @@ class ExampleHivemind:
         # also updated in the main loop every tick.
         packet = GameTickPacket()
         self.game_interface.update_live_data_packet(packet)
-        # Ball prediction works the same. Check the main loop.
-
-        # Create a Ball object for the ball that holds its information.
-        self.ball = Ball()
 
         # Create a Drone object for every drone that holds its information.
         self.drones = []
@@ -101,11 +68,9 @@ class ExampleHivemind:
         self.game_loop()
 
     def game_loop(self):
-        """The main game loop. This is where your hivemind code goes."""
 
-        # Creating packet and ball prediction objects which will be updated every tick.
+        # Creating packet which will be updated every tick.
         packet = GameTickPacket()
-        ball_prediction = BallPrediction()
 
         # Nicknames the renderer to shorten code.
         draw = self.game_interface.renderer
@@ -127,9 +92,6 @@ class ExampleHivemind:
                 draw.begin_rendering(f'Hivemind')
 
                 # PRE-PROCESSING:
-
-                # Updates the ball prediction.
-                # self.game_interface.update_ball_prediction(ball_prediction)
 
                 # Create a Drone object for every drone that holds its information.
                 if packet.num_cars > len(self.drones):
@@ -162,9 +124,6 @@ class ExampleHivemind:
                 draw.end_rendering()
 
 
-# -----------------------------------------------------------
-
-
 def convert_player_input(ctrl: SimpleControllerState) -> PlayerInput:
     player_input = PlayerInput()
     player_input.throttle = ctrl.throttle
@@ -177,26 +136,3 @@ def convert_player_input(ctrl: SimpleControllerState) -> PlayerInput:
     player_input.handbrake = ctrl.handbrake
     player_input.use_item = ctrl.use_item
     return player_input
-
-
-# -----------------------------------------------------------
-
-# UTILS:
-# I copied over some of my HiveBot utils.
-# Feel free to check out the full utilities file of HiveBot.
-
-
-class Ball:
-    """Houses the processed data from the packet for the ball.
-
-    Attributes:
-        pos {np.ndarray} -- Position vector.
-    """
-    __slots__ = [
-        'pos'
-    ]
-
-    def __init__(self):
-        self.pos: np.ndarray = np.zeros(3)
-
-# LINEAR ALGEBRA:
