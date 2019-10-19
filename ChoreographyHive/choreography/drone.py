@@ -1,10 +1,7 @@
 import numpy as np
 from rlbot.agents.base_agent import SimpleControllerState
 
-# Turn to pos wiggle rate per second.
 from rlbot.utils.structures.game_data_struct import Rotator, Vector3, PlayerInfo
-
-RATE = 0.2
 
 
 class Drone:
@@ -58,7 +55,10 @@ def slow_to_pos(drone, position):
             drone.ctrl.boost = True
 
 
-def turn_to_pos(drone, position, game_time):
+def turn_to_pos(drone, position, game_time):    
+    # Wiggle rate per second.
+    RATE = 0.2
+
     # Calculates the target position in local coordinates.
     local_target = local(drone.orient_m, drone.pos, position)
     # Finds 2D angle to target. Positive is clockwise.
