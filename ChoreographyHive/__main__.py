@@ -1,11 +1,13 @@
 """RLBotChoreography
 
 Usage:
-    choreograph [--min-bots=<min>] [--bot-folder=<folder>]
+    ChoreographyHive [--min-bots=<min>] [--bot-folder=<folder>]
+    ChoreographyHive (-h | --help)
 
 Options:
-    --min-bots=<min>             The minimum number of bots to spawn [default: 10].
-    --bot-folder=<folder>        Searches this folder for bot configs to use for names and appearances [default: .].
+    -h --help               Shows this help message.
+    --min-bots=<min>        The minimum number of bots to spawn [default: 10].
+    --bot-folder=<folder>   Searches this folder for bot configs to use for names and appearances [default: .].
 """
 import copy
 import os
@@ -23,9 +25,17 @@ from hivemind import Hivemind
 
 if __name__ == '__main__':
 
+    # https://github.com/docopt/docopt
     arguments = docopt(__doc__)
 
-    min_bots = min(int(arguments['--min-bots']), MAX_PLAYERS)
+    try:
+        # TODO Somehow get to this information without creating an unnecessary object.
+        num_bots = Hivemind().choreo.num_bots
+        print('Using the number of bots needed for the chosen choreography.')
+    except NameError:
+        num_bots = arguments['--min-bots']
+
+    min_bots = min(int(num_bots), MAX_PLAYERS)
     bot_directory = arguments['--bot-folder']
     bundles = scan_directory_for_bot_configs(bot_directory)
 
