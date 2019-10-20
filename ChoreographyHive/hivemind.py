@@ -1,20 +1,18 @@
 '''The Hivemind'''
-import os
-import sys
 
 from rlbot.utils.structures.bot_input_struct import PlayerInput
-
-from choreography.lightfall_choreography import LightfallChoreography
-
-sys.path.append(os.path.dirname(os.path.realpath(__file__)))
-
-import time
 from rlbot.agents.base_agent import SimpleControllerState
-
 from rlbot.utils.logging_utils import get_logger
 from rlbot.utils.structures.game_data_struct import GameTickPacket, FieldInfoPacket
 from rlbot.utils.structures.game_interface import GameInterface
 
+import time
+import sys
+from pathlib import Path
+
+sys.path.append(Path(__file__).resolve().parent)
+
+from choreography.lightfall_choreography import LightfallChoreography
 from choreography.drone import Drone
 
 
@@ -61,7 +59,7 @@ class Hivemind:
         packet = GameTickPacket()
         self.game_interface.update_live_data_packet(packet)
 
-        # Create a Drone object for every drone that holds its information.
+        # Initialise drones list. Will be filled with Drone objects for every drone.
         self.drones = []
 
         # Runs the game loop where the hivemind will spend the rest of its time.
@@ -89,12 +87,13 @@ class Hivemind:
             else:
                 # Begins rendering at the start of the loop; makes life easier.
                 # https://discordapp.com/channels/348658686962696195/446761380654219264/610879527089864737
-                draw.begin_rendering(f'Hivemind')
+                draw.begin_rendering('Hivemind')
 
                 # PRE-PROCESSING:
 
                 # Create a Drone object for every drone that holds its information.
                 if packet.num_cars > len(self.drones):
+                    # Clears the list if there are more cars than drones.
                     self.drones.clear()
                     for index in range(packet.num_cars):
                         self.drones.append(Drone(index, packet.game_cars[index].team))
