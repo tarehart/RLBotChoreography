@@ -12,7 +12,9 @@ from pathlib import Path
 
 sys.path.append(Path(__file__).resolve().parent)
 
-from choreography.lightfall_choreography import LightfallChoreography
+# Importing the chosen choreography:
+# from choreography.lightfall_choreography import LightfallChoreography
+from choreography.crossing_squares import CrossingSquares
 from choreography.drone import Drone
 
 
@@ -36,8 +38,9 @@ class Hivemind:
 
         self.drones = []
 
-        self.lightfall_choreography = LightfallChoreography(self.game_interface)
-        self.lightfall_choreography.generate_sequence()
+        # The chosen choreoraphy to perform.
+        self.choreo = CrossingSquares(self.game_interface)
+        self.choreo.generate_sequence()
 
     def start(self):
         """Runs once, sets up the hivemind and its agents."""
@@ -85,11 +88,6 @@ class Hivemind:
                 time.sleep(0.001)
 
             else:
-                # Begins rendering at the start of the loop; makes life easier.
-                # https://discordapp.com/channels/348658686962696195/446761380654219264/610879527089864737
-                draw.begin_rendering('Hivemind')
-
-                # PRE-PROCESSING:
 
                 # Create a Drone object for every drone that holds its information.
                 if packet.num_cars > len(self.drones):
@@ -102,28 +100,33 @@ class Hivemind:
                 for drone in self.drones:
                     drone.update(packet.game_cars[drone.index])
 
-                self.lightfall_choreography.step(packet, self.drones)
-                if self.lightfall_choreography.finished:
-                    self.lightfall_choreography = LightfallChoreography(self.game_interface)
-                    self.lightfall_choreography.generate_sequence()
+                # Steps through the choreography.
+                self.choreo.step(packet, self.drones)
 
-                # Use this to send the drone inputs to the drones.
+                # Resets choreography once it has finished.
+                if self.choreo.finished:
+                    self.choreo = CrossingSquares(self.game_interface)
+                    self.choreo.generate_sequence()
+
+                # Sends the drone inputs to the drones.
                 for drone in self.drones:
                     self.game_interface.update_player_input(
                         convert_player_input(drone.ctrl), drone.index)
 
-                # Some example rendering:
+                # Some example endering:
 
+                # draw.begin_rendering('Hivemind')
                 # Renders drone indices.
                 # for drone in self.drones:
                 #     draw.draw_string_3d(drone.pos, 1, 1, str(
                 #         drone.index), draw.white())
-
-                # Ending rendering.
-                draw.end_rendering()
+                # draw.end_rendering()
 
 
 def convert_player_input(ctrl: SimpleControllerState) -> PlayerInput:
+    """
+    Converts a SimpleControllerState to a PlayerInput object.
+    """
     player_input = PlayerInput()
     player_input.throttle = ctrl.throttle
     player_input.steer = ctrl.steer
