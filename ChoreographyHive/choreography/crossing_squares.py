@@ -25,15 +25,16 @@ class CrossingSquares(Choreography):
         pause_time = 1.5
 
         self.sequence.append(DroneListStep(self.hide_ball))
-        # self.sequence.append(DroneListStep(self.make_squares))
-        self.sequence.append(DroneListStep(self.line_up))
+        self.sequence.append(DroneListStep(self.make_squares))
         self.sequence.append(BlindBehaviorStep(SimpleControllerState(), pause_time))
-        self.sequence.append(DroneListStep(self.place_near_ceiling))
-        self.sequence.append(BlindBehaviorStep(SimpleControllerState(), 0.1))
-        self.sequence.append(PerDroneStep(self.drift_downward, 20))
-        self.sequence.append(BlindBehaviorStep(SimpleControllerState(), 0.5))
-        self.sequence.append(PerDroneStep(self.wave_jump, 10))
-        self.sequence.append(DroneListStep(self.circular_procession))
+        # self.sequence.append(DroneListStep(self.line_up))
+        # self.sequence.append(BlindBehaviorStep(SimpleControllerState(), pause_time))
+        # self.sequence.append(DroneListStep(self.place_near_ceiling))
+        # self.sequence.append(BlindBehaviorStep(SimpleControllerState(), 0.1))
+        # self.sequence.append(PerDroneStep(self.drift_downward, 20))
+        # self.sequence.append(BlindBehaviorStep(SimpleControllerState(), 0.5))
+        # self.sequence.append(PerDroneStep(self.wave_jump, 10))
+        # self.sequence.append(DroneListStep(self.circular_procession))
         
     def hide_ball(self, packet, drones, start_time) -> StepResult:
         """
@@ -66,10 +67,28 @@ class CrossingSquares(Choreography):
         """
         Seperates all the bots into two squares
         """
-        drone_num = len(drones)
-        #square1 = drones[:drone_num/2]
-        #square2 = drones[drone_num/2:]
-        #TODO
+        self.squareA = drones[:16]
+        self.squareB = drones[16:]
+
+        spacing = 400
+        y_offset = 1800
+        x_offset = 3 * spacing / 2
+
+        car_states = {}
+        for i, drone in enumerate(self.squareA):
+            car_states[drone.index] = CarState(
+                Physics(location=Vector3(-x_offset + spacing*(i % 4), -y_offset + spacing*(i // 4), 20),
+                        velocity=Vector3(0, 0, 0),
+                        rotation=Rotator(0, math.pi/2, 0)))
+                        
+        for i, drone in enumerate(self.squareB):
+            car_states[drone.index] = CarState(
+                Physics(location=Vector3(x_offset - spacing*(i % 4), y_offset - spacing*(i // 4), 20),
+                        velocity=Vector3(0, 0, 0),
+                        rotation=Rotator(0, -math.pi/2, 0)))
+
+        self.game_interface.set_game_state(GameState(cars=car_states))
+        return StepResult(finished=True)
 
     def wave_jump(self, packet, drone, start_time) -> StepResult:
         """
