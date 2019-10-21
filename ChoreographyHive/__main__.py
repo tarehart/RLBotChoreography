@@ -25,17 +25,18 @@ from hivemind import Hivemind
 
 if __name__ == '__main__':
 
-    # https://github.com/docopt/docopt
     arguments = docopt(__doc__)
 
     try:
         # TODO Somehow get to this information without creating an unnecessary object.
         num_bots = Hivemind().choreo.num_bots
-        print('Using the number of bots needed for the chosen choreography.')
-    except NameError:
+        print('[RLBotChoreography]: Using the number of bots provided by the chosen choreography.')
+    except AttributeError:
         num_bots = arguments['--min-bots']
+        print('[RLBotChoreography]: Using default or given number of bots.')
+    finally:
+        min_bots = min(int(num_bots), MAX_PLAYERS)
 
-    min_bots = min(int(num_bots), MAX_PLAYERS)
     bot_directory = arguments['--bot-folder']
     bundles = scan_directory_for_bot_configs(bot_directory)
 
