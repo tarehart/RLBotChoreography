@@ -22,19 +22,14 @@ class CrossingSquares(Choreography):
     def generate_sequence(self):
         self.sequence.clear()
 
-        pause_time = 1.5
+        pause_time = 1.0
 
         self.sequence.append(DroneListStep(self.hide_ball))
         self.sequence.append(DroneListStep(self.make_squares))
+        self.sequence.append(DroneListStep(self.delayed_start))
+        self.sequence.append(DroneListStep(self.interweave))
         self.sequence.append(BlindBehaviorStep(SimpleControllerState(), pause_time))
-        # self.sequence.append(DroneListStep(self.line_up))
-        # self.sequence.append(BlindBehaviorStep(SimpleControllerState(), pause_time))
-        # self.sequence.append(DroneListStep(self.place_near_ceiling))
-        # self.sequence.append(BlindBehaviorStep(SimpleControllerState(), 0.1))
-        # self.sequence.append(PerDroneStep(self.drift_downward, 20))
-        # self.sequence.append(BlindBehaviorStep(SimpleControllerState(), 0.5))
-        # self.sequence.append(PerDroneStep(self.wave_jump, 10))
-        # self.sequence.append(DroneListStep(self.circular_procession))
+
         
     def hide_ball(self, packet, drones, start_time) -> StepResult:
         """
@@ -45,6 +40,7 @@ class CrossingSquares(Choreography):
             velocity=Vector3(0, 0, 0),
             angular_velocity=Vector3(0, 0, 0)))))
         return StepResult(finished=True)
+
         
     def line_up(self, packet, drones, start_time) -> StepResult:
         """
@@ -63,84 +59,60 @@ class CrossingSquares(Choreography):
         self.game_interface.set_game_state(GameState(cars=car_states))
         return StepResult(finished=True)
 
+
     def make_squares(self, packet, drones, start_time) -> StepResult:
         """
-        Seperates all the bots into two squares
+        Separates all the bots into two squares, facing each other.
         """
         self.squareA = drones[:16]
         self.squareB = drones[16:]
 
-        spacing = 400
-        y_offset = 1800
+        spacing = 250
+        y_offset = 2500
         x_offset = 3 * spacing / 2
 
         car_states = {}
         for i, drone in enumerate(self.squareA):
             car_states[drone.index] = CarState(
-                Physics(location=Vector3(-x_offset + spacing*(i % 4), -y_offset + spacing*(i // 4), 20),
+                Physics(location=Vector3(x_offset - spacing*(i % 4), -y_offset - spacing*(i // 4), 20),
                         velocity=Vector3(0, 0, 0),
                         rotation=Rotator(0, math.pi/2, 0)))
                         
         for i, drone in enumerate(self.squareB):
             car_states[drone.index] = CarState(
-                Physics(location=Vector3(x_offset - spacing*(i % 4), y_offset - spacing*(i // 4), 20),
+                Physics(location=Vector3(x_offset - spacing*(i % 4), y_offset + spacing*(i // 4), 20),
                         velocity=Vector3(0, 0, 0),
                         rotation=Rotator(0, -math.pi/2, 0)))
 
         self.game_interface.set_game_state(GameState(cars=car_states))
         return StepResult(finished=True)
 
-    def wave_jump(self, packet, drone, start_time) -> StepResult:
+        
+    def delayed_start(self, packet, drones, start_time) -> StepResult:
         """
-        Makes all cars jump in sequence, "doing the wave" if they happen to be lined up.
-        https://gfycat.com/remorsefulsillyichthyosaurs
+        Spreads bots out by delaying their start.
         """
         elapsed = packet.game_info.seconds_elapsed - start_time
-        jump_start = drone.index * 0.06
-        jump_end = jump_start + .5
-        drone.ctrl = SimpleControllerState(jump=jump_start < elapsed < jump_end)
-        wheel_contact = packet.game_cars[drone.index].has_wheel_contact
-        return StepResult(finished=elapsed > jump_end and wheel_contact)
-
-    def circular_procession(self, packet, drones, start_time) -> StepResult:
-        """
-        Makes all cars drive in a slowly shrinking circle.
-        https://gfycat.com/yearlygreathermitcrab
-        """
-        radian_spacing = 2 * math.pi / len(drones)
-        elapsed = packet.game_info.seconds_elapsed - start_time
-        radius = 4000 - elapsed * 100
-        for i, drone in enumerate(drones):
-            progress = i * radian_spacing + elapsed * .5
-            target = [radius * math.sin(progress), radius * math.cos(progress), 0]
-            slow_to_pos(drone, target)
-        return StepResult(finished=radius < 10)
-
-    def place_near_ceiling(self, packet, drones, start_time) -> StepResult:
-        """
-        Puts all the cars in a tidy line close to the ceiling.
-        """
-        start_x = 2000
-        y_increment = 100
-        start_y = -len(drones) * y_increment / 2
-        start_z = 1900
-        car_states = {}
         for drone in drones:
-            car_states[drone.index] = CarState(
-                Physics(location=Vector3(start_x, start_y + drone.index * y_increment, start_z),
-                        velocity=Vector3(0, 0, 0),
-                        angular_velocity=Vector3(0, 0, 0),
-                        rotation=Rotator(math.pi * 1, 0, 0)))
-        self.game_interface.set_game_state(GameState(cars=car_states))
-        return StepResult(finished=True)
+            throttle_start = (drone.index % 16 // 4) * 0.2
+            drone.ctrl = SimpleControllerState()
+            if throttle_start < elapsed:
+                drone.ctrl.throttle = 1
 
-    def drift_downward(self, packet, drone, start_time) -> StepResult:
-        """
-        Causes cars to boost and pitch until they land on their wheels. This is tuned to work well when
-        place_near_ceiling has just been called.
-        """
-        drone.ctrl = SimpleControllerState(boost=drone.vel[2] < -280, throttle=1, pitch=-0.15)
-        wheel_contact = packet.game_cars[drone.index].has_wheel_contact
-        return StepResult(finished=wheel_contact)
+        return StepResult(finished=elapsed > 1)
 
+
+    def interweave(self, packet, drones, start_time) -> StepResult:
+        elapsed = packet.game_info.seconds_elapsed - start_time
+
+        for drone in drones:
+            drone.ctrl = SimpleControllerState()
+            drone.ctrl.throttle = 1.0
+
+            if (drone.index % 2 == 0) != ((drone.index // 4) % 2== 0):
+                if 1.2 < elapsed < 1.3:
+                    drone.ctrl.jump = True
+                    #drone.ctrl.boost = True
+        
+        return StepResult(finished=elapsed > 2)
 
