@@ -1,4 +1,4 @@
-import math
+import numpy as np
 
 from rlbot.agents.base_agent import SimpleControllerState
 from rlbot.utils.game_state_util import GameState, CarState, Physics, Vector3, Rotator, BallState
@@ -68,7 +68,7 @@ class CrossingSquares(Choreography):
         self.squareB = drones[16:]
 
         spacing = 250
-        y_offset = 2500
+        y_offset = 2550
         x_offset = 3 * spacing / 2
 
         car_states = {}
@@ -76,13 +76,13 @@ class CrossingSquares(Choreography):
             car_states[drone.index] = CarState(
                 Physics(location=Vector3(x_offset - spacing*(i % 4), -y_offset - spacing*(i // 4), 20),
                         velocity=Vector3(0, 0, 0),
-                        rotation=Rotator(0, math.pi/2, 0)))
+                        rotation=Rotator(0, np.pi/2, 0)))
                         
         for i, drone in enumerate(self.squareB):
             car_states[drone.index] = CarState(
-                Physics(location=Vector3(x_offset - spacing*(i % 4), y_offset + spacing*(i // 4), 20),
+                Physics(location=Vector3(-x_offset + spacing*(i % 4), y_offset + spacing*(i // 4), 20),
                         velocity=Vector3(0, 0, 0),
-                        rotation=Rotator(0, -math.pi/2, 0)))
+                        rotation=Rotator(0, -np.pi/2, 0)))
 
         self.game_interface.set_game_state(GameState(cars=car_states))
         return StepResult(finished=True)
@@ -90,29 +90,56 @@ class CrossingSquares(Choreography):
         
     def delayed_start(self, packet, drones, start_time) -> StepResult:
         """
-        Spreads bots out by delaying their start.
+        Spreads bots out by delaying the start of each row.
         """
         elapsed = packet.game_info.seconds_elapsed - start_time
-        for drone in drones:
-            throttle_start = (drone.index % 16 // 4) * 0.2
-            drone.ctrl = SimpleControllerState()
-            if throttle_start < elapsed:
-                drone.ctrl.throttle = 1
 
-        return StepResult(finished=elapsed > 1)
+        for drone in drones:
+            throttle_start = (drone.index % 16 // 4) * 0.9
+            drone.ctrl = SimpleControllerState()
+
+            if throttle_start < elapsed:
+                # Speed controller.
+                vel = np.linalg.norm(drone.vel*np.array([1,1,0]))
+                drone.ctrl.throttle = 0 if vel > 650 else 0.7
+
+        return StepResult(finished=elapsed > 3.6)
 
 
     def interweave(self, packet, drones, start_time) -> StepResult:
+        """
+        Make bots jump alternating such that they jump over each other.
+        """
         elapsed = packet.game_info.seconds_elapsed - start_time
+        start = 0.0
+        hold = 0.05
+        buffer = 0.65
 
         for drone in drones:
             drone.ctrl = SimpleControllerState()
-            drone.ctrl.throttle = 1.0
 
-            if (drone.index % 2 == 0) != ((drone.index // 4) % 2== 0):
-                if 1.2 < elapsed < 1.3:
+            # Speed controller.
+            vel = np.linalg.norm(drone.vel*np.array([1,1,0]))
+            drone.ctrl.throttle = 0 if vel > 650 else 0.7
+
+            if (drone.index % 2 == 0):
+                if start < elapsed < start+hold:
                     drone.ctrl.jump = True
-                    #drone.ctrl.boost = True
+                elif start+2*buffer < elapsed < start+2*buffer+hold:
+                    drone.ctrl.jump = True
+                elif start+4*buffer < elapsed < start+4*buffer+hold:
+                    drone.ctrl.jump = True
+                elif start+6*buffer < elapsed < start+6*buffer+hold:
+                    drone.ctrl.jump = True
+            else:
+                if start+buffer < elapsed < start+buffer+hold:
+                    drone.ctrl.jump = True
+                elif start+3*buffer < elapsed < start+3*buffer+hold:
+                    drone.ctrl.jump = True
+                elif start+5*buffer < elapsed < start+5*buffer+hold:
+                    drone.ctrl.jump = True
+                elif start+7*buffer < elapsed < start+7*buffer+hold:
+                    drone.ctrl.jump = True
         
-        return StepResult(finished=elapsed > 2)
+        return StepResult(finished=elapsed > start+8*buffer)
 
