@@ -138,8 +138,6 @@ class CrossingSquares(Choreography):
                     drone.ctrl.jump = True
                 elif start+5*buffer < elapsed < start+5*buffer+hold:
                     drone.ctrl.jump = True
-                elif start+7*buffer < elapsed < start+7*buffer+hold:
-                    drone.ctrl.jump = True
         
         return StepResult(finished=elapsed > start+8*buffer)
 
