@@ -13,6 +13,7 @@ class Choreography:
         self.finished = False
 
     def step(self, packet: GameTickPacket, drones: List[Drone]):
+        self.pre_step(drones)
         if self.sequence_index < len(self.sequence):
             step = self.sequence[self.sequence_index]
             result = step.perform(packet, drones)
@@ -21,9 +22,13 @@ class Choreography:
         else:
             self.finished = True
 
-    def generate_sequence(self):
+    def generate_sequence(self, drones: List[Drone]):
         pass
 
     @staticmethod
     def get_num_bots():
         raise NotImplementedError
+
+    def pre_step(self, drones: List[Drone]):
+        for drone in drones:
+            drone.reset_ctrl()

@@ -1,3 +1,5 @@
+from typing import List
+
 import numpy as np
 
 from rlbot.agents.base_agent import SimpleControllerState
@@ -5,7 +7,7 @@ from rlbot.utils.game_state_util import GameState, CarState, Physics, Vector3, R
 from rlbot.utils.structures.game_interface import GameInterface
 
 from choreography.choreography import Choreography
-from choreography.drone import seek_pos, normalise
+from choreography.drone import seek_pos, normalise, Drone
 from choreography.group_step import BlindBehaviorStep, DroneListStep, StepResult, PerDroneStep
 
 
@@ -20,14 +22,14 @@ class Boids(Choreography):
         super().__init__()
         self.game_interface = game_interface
 
-    def generate_sequence(self):
+    def generate_sequence(self, drones: List[Drone]):
         self.sequence.clear()
 
         self.sequence.append(DroneListStep(self.hide_ball))
         # self.sequence.append(DroneListStep(self.scatter))
         self.sequence.append(DroneListStep(self.drones_are_boids))
 
-        
+
     def hide_ball(self, packet, drones, start_time) -> StepResult:
         """
         Places the ball above the roof of the arena to keep it out of the way.
@@ -38,7 +40,7 @@ class Boids(Choreography):
             angular_velocity=Vector3(0, 0, 0)))))
         return StepResult(finished=True)
 
-    
+
     def scatter(self, packet, drones, start_time) -> StepResult:
         """
         Scatters the bots around the field randomly.
@@ -72,7 +74,7 @@ class Boids(Choreography):
         for drone in drones:
             # Resetting drone controller.
             drone.ctrl = SimpleControllerState()
-            
+
             # Creating "forces"
             alignment_vec = np.zeros(3)
             cohesion_vec = np.zeros(3)
@@ -83,7 +85,7 @@ class Boids(Choreography):
             for other in drones:
                 # Skip if the other is also the drone.
                 if other is drone: continue
-                
+
                 other_to_drone = drone.pos - other.pos
                 distance = np.linalg.norm(other_to_drone)
 
@@ -99,7 +101,7 @@ class Boids(Choreography):
                 cohesion_vec += other.pos
                 # Separation
                 separation_vec += other_to_drone / distance**2
-            
+
             # Avoid Walls.
             if drone.pos[0] < -2800:
                 avoid_walls_vec += np.array([1,0,0])
@@ -110,8 +112,8 @@ class Boids(Choreography):
                 avoid_walls_vec += np.array([0,1,0])
             elif drone.pos[1] > 3800:
                 avoid_walls_vec += np.array([0,-1,0])
-                
-            # Averaging out cohesion_vec 
+
+            # Averaging out cohesion_vec
             # and making it relative to drone.
             if others > 0: cohesion_vec / others
             cohesion_vec -= drone.pos

@@ -1,3 +1,5 @@
+from typing import List
+
 import numpy as np
 
 from rlbot.agents.base_agent import SimpleControllerState
@@ -5,7 +7,7 @@ from rlbot.utils.game_state_util import GameState, CarState, Physics, Vector3, R
 from rlbot.utils.structures.game_interface import GameInterface
 
 from choreography.choreography import Choreography
-from choreography.drone import slow_to_pos
+from choreography.drone import slow_to_pos, Drone
 from choreography.group_step import BlindBehaviorStep, DroneListStep, StepResult, PerDroneStep
 
 
@@ -18,7 +20,7 @@ class CrossingSquares(Choreography):
         super().__init__()
         self.game_interface = game_interface
 
-    def generate_sequence(self):
+    def generate_sequence(self, drones: List[Drone]):
         self.sequence.clear()
 
         pause_time = 1.0
@@ -33,7 +35,7 @@ class CrossingSquares(Choreography):
     def get_num_bots() -> int:
         return 32
 
-        
+
     def hide_ball(self, packet, drones, start_time) -> StepResult:
         """
         Places the ball above the roof of the arena to keep it out of the way.
@@ -44,7 +46,7 @@ class CrossingSquares(Choreography):
             angular_velocity=Vector3(0, 0, 0)))))
         return StepResult(finished=True)
 
-        
+
     def line_up(self, packet, drones, start_time) -> StepResult:
         """
         Puts all the cars in a tidy line, very close together.
@@ -80,7 +82,7 @@ class CrossingSquares(Choreography):
                 Physics(location=Vector3(x_offset - spacing*(i % 4), -y_offset - spacing*(i // 4), 20),
                         velocity=Vector3(0, 0, 0),
                         rotation=Rotator(0, np.pi/2, 0)))
-                        
+
         for i, drone in enumerate(self.squareB):
             car_states[drone.index] = CarState(
                 Physics(location=Vector3(-x_offset + spacing*(i % 4), y_offset + spacing*(i // 4), 20),
@@ -90,7 +92,7 @@ class CrossingSquares(Choreography):
         self.game_interface.set_game_state(GameState(cars=car_states))
         return StepResult(finished=True)
 
-        
+
     def delayed_start(self, packet, drones, start_time) -> StepResult:
         """
         Spreads bots out by delaying the start of each row.
@@ -141,6 +143,6 @@ class CrossingSquares(Choreography):
                     drone.ctrl.jump = True
                 elif start+5*buffer < elapsed < start+5*buffer+hold:
                     drone.ctrl.jump = True
-        
+
         return StepResult(finished=elapsed > start+8*buffer)
 

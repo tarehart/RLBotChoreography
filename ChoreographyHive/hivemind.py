@@ -32,7 +32,7 @@ class Hivemind:
         self.drones = []
 
         self.choreo = choreo_obj(self.game_interface)
-        self.choreo.generate_sequence()
+        self.choreo.generate_sequence(self.drones)
 
         # Set up queue to know when to stop and reload.
         self.queue = queue
@@ -90,7 +90,7 @@ class Hivemind:
 
             # Processing drone data.
             for drone in self.drones:
-                drone.update(packet.game_cars[drone.index])
+                drone.update(packet.game_cars[drone.index], packet.game_info.seconds_elapsed)
 
             # Steps through the choreography.
             self.choreo.step(packet, self.drones)
@@ -99,7 +99,7 @@ class Hivemind:
             if self.choreo.finished:
                 # Re-instantiates the choreography.
                 self.choreo = self.choreo.__class__(self.game_interface)
-                self.choreo.generate_sequence()
+                self.choreo.generate_sequence(self.drones)
 
             # Sends the drone inputs to the drones.
             for drone in self.drones:
@@ -112,7 +112,7 @@ class Hivemind:
         """
         if self.queue.empty():
             return True
-            
+
         else:
             message = self.queue.get()
             return message != QCommand.STOP

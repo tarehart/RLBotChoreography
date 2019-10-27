@@ -18,7 +18,7 @@ class LightfallChoreography(Choreography):
         super().__init__()
         self.game_interface = game_interface
 
-    def generate_sequence(self):
+    def generate_sequence(self, drones):
         self.sequence.clear()
 
         pause_time = 1.5

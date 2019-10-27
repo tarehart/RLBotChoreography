@@ -12,17 +12,19 @@ class Drone:
         self.rot: np.ndarray = np.zeros(3)
         self.vel: np.ndarray = np.zeros(3)
         self.boost: float = 0.0
+        self.time: float = 0.0
         self.orient_m: np.ndarray = np.identity(3)
         self.ctrl: SimpleControllerState = SimpleControllerState()
 
-    def update(self, game_car: PlayerInfo):
+    def update(self, game_car: PlayerInfo, time: float):
         self.pos = a3v(game_car.physics.location)
         self.rot = a3r(game_car.physics.rotation)
         self.vel = a3v(game_car.physics.velocity)
         self.boost = game_car.boost
         self.orient_m = orient_matrix(self.rot)
+        self.time = time
 
-        # Reset ctrl every tick.
+    def reset_ctrl(self):
         self.ctrl = SimpleControllerState()
 
 
@@ -33,13 +35,13 @@ def seek_pos(drone, position, max_speed=1410):
 
     # Get speed.
     speed = np.linalg.norm(drone.vel)
-            
+
     # Simplified speed controller.
     if speed < max_speed:
         drone.ctrl.throttle = 1.0
     else:
         drone.ctrl.throttle = 0.0
-        
+
     def special_sauce(x, a):
         """Modified sigmoid to smooth out steering."""
         # Graph: https://www.geogebra.org/m/udfp2zcy
@@ -104,13 +106,13 @@ def slow_to_pos2(drone, position):
 
     # Calculates steer
     drone.ctrl.steer = special_sauce(angle, -5)
-        
+
     # Manages desired speed so that cars slow down when close and when turning.
     desired_speed = distance/2
     if distance > TURN_DIS:
         desired_speed -= TURN_SLOW * special_sauce(angle, -2)
     desired_speed = cap(desired_speed, 0.0, 2300.0)
-        
+
     # Simplified speed controller.
     if speed < desired_speed and distance > STOP_DIS:
         drone.ctrl.throttle = 1.0
@@ -118,7 +120,7 @@ def slow_to_pos2(drone, position):
         drone.ctrl.throttle = 0.0
 
 
-def turn_to_pos(drone, position, game_time):    
+def turn_to_pos(drone, position, game_time):
     # Wiggle rate per second.
     RATE = 0.2
 
@@ -227,10 +229,10 @@ def a3v(v: Vector3) -> np.ndarray:
 
 def normalise(V : np.ndarray) -> np.ndarray:
     """Normalises a vector.
-    
+
     Arguments:
         V {np.ndarray} -- Vector.
-    
+
     Returns:
         np.ndarray -- Normalised vector.
     """

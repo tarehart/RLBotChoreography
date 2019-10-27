@@ -13,10 +13,11 @@ import os
 import sys
 import inspect
 import time
+
 from docopt import docopt
 from importlib import reload, import_module
-from queue import Queue 
-from threading import Thread 
+from queue import Queue
+from threading import Thread
 from os.path import dirname, basename, isfile, join
 import glob
 
@@ -40,7 +41,7 @@ class RLBotChoreography:
         # Runs GUI and Hivemind on two different threads.
         q = Queue()
         thread1 = Thread(target=self.run_gui, args=(q, ))
-        thread1.start()  
+        thread1.start()
         thread2 = Thread(target=self.run_RLBotChoreography, args=(q, ))
         thread2.start()
         q.join()
@@ -86,7 +87,7 @@ class RLBotChoreography:
         # Waits until a START command is received.
         while queue.get() != QCommand.START:
             continue
-        
+
         self.setup_match()
 
         while True:
@@ -103,7 +104,7 @@ class RLBotChoreography:
                 self.setup_match()
             elif command == QCommand.EXIT:
                 break
-        
+
         exit() # Clean exit.
 
 
@@ -151,12 +152,12 @@ class RLBotChoreography:
             queue.put(QCommand.START)
 
             # Removes the button so we cannot start again.
-            button_start.destroy() 
+            button_start.destroy()
 
             # Hive reset button.
             button_reload_hive = tk.Button(frame, text="↻ Hivemind", command=reload_hive)
             button_reload_hive.pack()
-                
+
             # All reset button.
             button_reload_all = tk.Button(frame, text="↻ All", command=reload_all)
             button_reload_all.pack()
@@ -199,7 +200,7 @@ class RLBotChoreography:
             queue.put(QCommand.ALL)
 
         # TODO Make GUI look better.
-        import tkinter as tk  
+        import tkinter as tk
 
         root = tk.Tk()
         frame = tk.Frame(root)
@@ -224,7 +225,7 @@ class RLBotChoreography:
         entry_num_bots = tk.Entry(frame)
         entry_num_bots.insert(0, 10)
         entry_num_bots.pack()
-        
+
         # This is here just to make sure everything is set up by default.
         choreo_selected(menuvar.get())
 
