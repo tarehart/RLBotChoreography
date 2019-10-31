@@ -26,7 +26,63 @@ class Drone:
         self.ctrl = SimpleControllerState()
 
 
-def seek_pos(drone, position):
+def seek_pos(drone, position, max_speed=1410):
+    """
+    Tries to intelligently drive so it stops at a given position.
+    """
+
+    # Get speed.
+    speed = np.linalg.norm(drone.vel)
+            
+    # Simplified speed controller.
+    if speed < max_speed:
+        drone.ctrl.throttle = 1.0
+    else:
+        drone.ctrl.throttle = 0.0
+        
+    def special_sauce(x, a):
+        """Modified sigmoid to smooth out steering."""
+        # Graph: https://www.geogebra.org/m/udfp2zcy
+        return 2 / (1 + np.exp(a * x)) - 1
+
+    # Calculates the 2D angle to the position. Positive is clockwise.
+    local_target = local(drone.orient_m, drone.pos, position)
+    angle = np.arctan2(local_target[1], local_target[0])
+
+    # Calculates steer.
+    drone.ctrl.steer = special_sauce(angle, -5)
+
+
+def slow_to_pos(drone, position):
+    # Calculate distance and velocity.
+    distance = np.linalg.norm(position - drone.pos)
+    velocity = np.linalg.norm(drone.vel)
+    # Calculates the target position in local coordinates.
+    local_target = local(drone.orient_m, drone.pos, position)
+    # Finds 2D angle to target. Positive is clockwise.
+    angle = np.arctan2(local_target[1], local_target[0])
+
+    def special_sauce(x, a):
+        """Modified sigmoid to smooth out steering."""
+        # Graph: https://www.geogebra.org/m/udfp2zcy
+        return 2 / (1 + np.exp(a * x)) - 1
+
+    # Calculates steer.
+    drone.ctrl.steer = special_sauce(angle, -5)
+
+    # Throttle controller.
+    if abs(angle) > 2:
+        # If I'm facing the wrong way, do a little drift.
+        drone.ctrl.throttle = 1.0
+        drone.ctrl.handbrake = True
+    elif distance > 100:
+        # A simple PD controller to stop at target.
+        drone.ctrl.throttle = cap(0.3 * distance - 0.2 * velocity, -1.0, 1.0)
+        if distance > 1000:
+            drone.ctrl.boost = True
+
+
+def slow_to_pos2(drone, position):
     """
     Tries to intelligently drive so it stops at a given position.
     """
@@ -60,35 +116,6 @@ def seek_pos(drone, position):
         drone.ctrl.throttle = 1.0
     else:
         drone.ctrl.throttle = 0.0
-
-
-def slow_to_pos(drone, position):
-    # Calculate distance and velocity.
-    distance = np.linalg.norm(position - drone.pos)
-    velocity = np.linalg.norm(drone.vel)
-    # Calculates the target position in local coordinates.
-    local_target = local(drone.orient_m, drone.pos, position)
-    # Finds 2D angle to target. Positive is clockwise.
-    angle = np.arctan2(local_target[1], local_target[0])
-
-    def special_sauce(x, a):
-        """Modified sigmoid to smooth out steering."""
-        # Graph: https://www.geogebra.org/m/udfp2zcy
-        return 2 / (1 + np.exp(a * x)) - 1
-
-    # Calculates steer.
-    drone.ctrl.steer = special_sauce(angle, -5)
-
-    # Throttle controller.
-    if abs(angle) > 2:
-        # If I'm facing the wrong way, do a little drift.
-        drone.ctrl.throttle = 1.0
-        drone.ctrl.handbrake = True
-    elif distance > 100:
-        # A simple PD controller to stop at target.
-        drone.ctrl.throttle = cap(0.3 * distance - 0.2 * velocity, -1.0, 1.0)
-        if distance > 1000:
-            drone.ctrl.boost = True
 
 
 def turn_to_pos(drone, position, game_time):    
