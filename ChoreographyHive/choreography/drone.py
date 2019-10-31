@@ -198,6 +198,22 @@ def a3v(v: Vector3) -> np.ndarray:
     return np.array([v.x, v.y, v.z])
 
 
+def normalise(V : np.ndarray) -> np.ndarray:
+    """Normalises a vector.
+    
+    Arguments:
+        V {np.ndarray} -- Vector.
+    
+    Returns:
+        np.ndarray -- Normalised vector.
+    """
+    magnitude = np.linalg.norm(V)
+    if magnitude != 0.0:
+        return V / magnitude
+    else:
+        return V
+
+
 def orient_matrix(R: np.ndarray) -> np.ndarray:
     """Converts from Euler angles to an orientation matrix.
 
