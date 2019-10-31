@@ -12,7 +12,7 @@ from choreography.group_step import BlindBehaviorStep, DroneListStep, StepResult
 class Boids(Choreography):
     """
     Boids in RLBot!
-
+    Clip: https://gfycat.com/disguisedincompatiblefeline-rocketleague
     Based on: https://www.red3d.com/cwr/boids/
     """
 
