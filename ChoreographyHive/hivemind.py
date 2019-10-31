@@ -39,6 +39,7 @@ class Hivemind:
         self.drones = []
 
         # The chosen choreoraphy to perform.
+        # TODO Set this based on input so it is easy to test different choreographies.
         self.choreo = CrossingSquares(self.game_interface)
         self.choreo.generate_sequence()
 
