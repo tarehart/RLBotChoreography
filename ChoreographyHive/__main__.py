@@ -1,12 +1,12 @@
 """RLBotChoreography
 
 Usage:
-    ChoreographyHive [--min-bots=<min>] [--bot-folder=<folder>]
+    ChoreographyHive [--num-bots=<num>] [--bot-folder=<folder>]
     ChoreographyHive (-h | --help)
 
 Options:
     -h --help               Shows this help message.
-    --min-bots=<min>        The minimum number of bots to spawn [default: 10].
+    --num-bots=<num>        The number of bots to spawn [default: 10].
     --bot-folder=<folder>   Searches this folder for bot configs to use for names and appearances [default: .].
 """
 import copy
@@ -32,7 +32,7 @@ if __name__ == '__main__':
         num_bots = Hivemind().choreo.num_bots
         print('[RLBotChoreography]: Using the number of bots provided by the chosen choreography.')
     except AttributeError:
-        num_bots = arguments['--min-bots']
+        num_bots = arguments['--num-bots']
         print('[RLBotChoreography]: Using default or given number of bots.')
     finally:
         min_bots = min(int(num_bots), MAX_PLAYERS)
