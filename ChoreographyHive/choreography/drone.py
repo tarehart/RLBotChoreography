@@ -26,6 +26,42 @@ class Drone:
         self.ctrl = SimpleControllerState()
 
 
+def seek_pos(drone, position):
+    """
+    Tries to intelligently drive so it stops at a given position.
+    """
+    TURN_DIS = 1200 # Slows down for turns when farther than this.
+    TURN_SLOW = 500 # Maximum speed slowdown for turning.
+    STOP_DIS = 40 # Stops if closer than this.
+
+    def special_sauce(x, a):
+        """Modified sigmoid function."""
+        return 2 / (1 + np.exp(a * x)) - 1
+
+    # Get distance and speed.
+    distance = np.linalg.norm(position - drone.pos)
+    speed = np.linalg.norm(drone.vel)
+
+    # Calculates the 2D angle to the position. Positive is clockwise.
+    local_target = local(drone.orient_m, drone.pos, position)
+    angle = np.arctan2(local_target[1], local_target[0])
+
+    # Calculates steer
+    drone.ctrl.steer = special_sauce(angle, -5)
+        
+    # Manages desired speed so that cars slow down when close and when turning.
+    desired_speed = distance/2
+    if distance > TURN_DIS:
+        desired_speed -= TURN_SLOW * special_sauce(angle, -2)
+    desired_speed = cap(desired_speed, 0.0, 2300.0)
+        
+    # Simplified speed controller.
+    if speed < desired_speed and distance > STOP_DIS:
+        drone.ctrl.throttle = 1.0
+    else:
+        drone.ctrl.throttle = 0.0
+
+
 def slow_to_pos(drone, position):
     # Calculate distance and velocity.
     distance = np.linalg.norm(position - drone.pos)
