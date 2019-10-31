@@ -14,7 +14,8 @@ sys.path.append(Path(__file__).resolve().parent)
 
 # Importing the chosen choreography:
 # from choreography.lightfall_choreography import LightfallChoreography
-from choreography.crossing_squares import CrossingSquares
+# from choreography.crossing_squares import CrossingSquares
+from choreography.boids import Boids
 from choreography.drone import Drone
 
 
@@ -40,7 +41,7 @@ class Hivemind:
 
         # The chosen choreoraphy to perform.
         # TODO Set this based on input so it is easy to test different choreographies.
-        self.choreo = CrossingSquares(self.game_interface)
+        self.choreo = Boids(self.game_interface)
         self.choreo.generate_sequence()
 
     def start(self):
@@ -106,7 +107,7 @@ class Hivemind:
 
                 # Resets choreography once it has finished.
                 if self.choreo.finished:
-                    self.choreo = CrossingSquares(self.game_interface)
+                    self.choreo = Boids(self.game_interface)
                     self.choreo.generate_sequence()
 
                 # Sends the drone inputs to the drones.
