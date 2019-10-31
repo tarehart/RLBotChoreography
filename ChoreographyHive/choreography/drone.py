@@ -30,8 +30,8 @@ def seek_pos(drone, position):
     """
     Tries to intelligently drive so it stops at a given position.
     """
-    TURN_DIS = 1200 # Slows down for turns when farther than this.
-    TURN_SLOW = 500 # Maximum speed slowdown for turning.
+    TURN_DIS = 800 # Slows down for turns when farther than this.
+    TURN_SLOW = 300 # Maximum speed slowdown for turning.
     STOP_DIS = 40 # Stops if closer than this.
 
     def special_sauce(x, a):
@@ -144,7 +144,7 @@ def local(A: np.ndarray, p0: np.ndarray, p1: np.ndarray) -> np.ndarray:
 
 
 def cap(value: float, minimum: float, maximum: float) -> float:
-    """Caps the value at given minumum and maximum.
+    """Caps the value at given minimum and maximum.
 
     Arguments:
         value {float} -- The value being capped.
@@ -166,7 +166,7 @@ def a3l(l: list) -> np.ndarray:
     """Converts list to numpy array.
 
     Arguments:
-        L {list} -- The list to convert containing 3 elemets.
+        L {list} -- The list to convert containing 3 elements.
 
     Returns:
         np.array -- Numpy array with the same contents as the list.
