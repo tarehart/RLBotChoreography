@@ -41,7 +41,7 @@ class Hivemind:
 
         # The chosen choreoraphy to perform.
         # TODO Set this based on input so it is easy to test different choreographies.
-        self.choreo = Boids(self.game_interface)
+        self.choreo = Boids(self.game_interface) # TODO Set this within GUI
         self.choreo.generate_sequence()
 
     def start(self):
@@ -79,7 +79,7 @@ class Hivemind:
         draw = self.game_interface.renderer
 
         # MAIN LOOP:
-        while True:
+        while self.loop_check():
 
             prev_time = packet.game_info.seconds_elapsed
             # Updating the game tick packet.
@@ -107,7 +107,7 @@ class Hivemind:
 
                 # Resets choreography once it has finished.
                 if self.choreo.finished:
-                    self.choreo = Boids(self.game_interface)
+                    self.choreo = Boids(self.game_interface) # TODO Set this within GUI
                     self.choreo.generate_sequence()
 
                 # Sends the drone inputs to the drones.
@@ -123,6 +123,13 @@ class Hivemind:
                 #     draw.draw_string_3d(drone.pos, 1, 1, str(
                 #         drone.index), draw.white())
                 # draw.end_rendering()
+
+    def loop_check():
+        """
+        Checks whether the hivemind should keep looping or should die.
+        """
+        # TODO Check if should die here.
+        return True
 
 
 def convert_player_input(ctrl: SimpleControllerState) -> PlayerInput:

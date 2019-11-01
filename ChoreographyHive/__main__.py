@@ -12,6 +12,7 @@ Options:
 import copy
 import os
 import sys
+import time
 from docopt import docopt
 
 from rlbot.matchconfig.conversions import parse_match_config
@@ -27,8 +28,15 @@ if __name__ == '__main__':
 
     arguments = docopt(__doc__)
 
+    # TODO GUI
+    # Should allow you to choose choreography
+    # Restarting (break in game_loop)
+
+    # TODO Do a test
+
     try:
         # TODO Somehow get to this information without creating an unnecessary object.
+        # Consider a @staticmethod ?
         num_bots = Hivemind().choreo.num_bots
         print('[RLBotChoreography]: Using the number of bots provided by the chosen choreography.')
     except AttributeError:
