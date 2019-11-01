@@ -124,7 +124,7 @@ class Hivemind:
                 #         drone.index), draw.white())
                 # draw.end_rendering()
 
-    def loop_check():
+    def loop_check(self):
         """
         Checks whether the hivemind should keep looping or should die.
         """
