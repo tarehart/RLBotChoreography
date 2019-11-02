@@ -63,11 +63,11 @@ class Boids(Choreography):
         Controls the drones to act like boids.
         """
         # Parameters:
-        PERCEPTION_DIS = 1000
-        ALIGNMENT_MUL = 300
-        COHESION_MUL = 200
-        SEPARATION_MUL = 350
-        AVOID_WALL_MUL = 1000
+        PERCEPTION_DIS = 800
+        ALIGNMENT_MUL = 100
+        COHESION_MUL = 150
+        SEPARATION_MUL = 200
+        AVOID_WALL_MUL = 500
 
         for drone in drones:
             # Resetting drone controller.
