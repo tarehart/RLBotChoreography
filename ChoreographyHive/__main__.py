@@ -27,20 +27,73 @@ from rlbot.utils.structures.start_match_structures import MAX_PLAYERS
 
 import hivemind
 
-################################################################
-
 # TODO GUI
 # Should allow you to choose choreography
-# Maybe allow to specify bots?
+# Maybe allow to specify num-bots?
 
-################################################################
+def setup_match():
+    arguments = docopt(__doc__) # Maybe use info from GUI instead?
 
-# VERSION 1
+    try:
+        # TODO Somehow get to this information without creating an unnecessary object.
+        # Consider a @staticmethod ?
+        num_bots = hivemind.Hivemind(None).choreo.num_bots
+        print('[RLBotChoreography]: Using the number of bots provided by the chosen choreography.')
+    except AttributeError:
+        num_bots = arguments['--num-bots']
+        print('[RLBotChoreography]: Using default or given number of bots.')
+    finally:
+        min_bots = min(int(num_bots), MAX_PLAYERS)
 
-# Everything reloads.
-# Allows for changing of the number of bots.
+    bot_directory = arguments['--bot-folder']
+    bundles = scan_directory_for_bot_configs(bot_directory)
 
-################################################################
+    # Set up RLBot.cfg
+    framework_config = create_bot_config_layout()
+    config_location = os.path.join(os.path.dirname(__file__), 'rlbot.cfg')
+    framework_config.parse_file(config_location, max_index=MAX_PLAYERS)
+    match_config = parse_match_config(framework_config, config_location, {}, {})
+
+    looks_configs = {idx: bundle.get_looks_config() for idx, bundle in enumerate(bundles)}
+    names = [bundle.name for bundle in bundles]
+
+    player_config = match_config.player_configs[0]
+    match_config.player_configs.clear()
+    for i in range(max(len(bundles), min_bots)):
+        copied = copy.copy(player_config)
+        if i < len(bundles):
+            copied.name = names[i]
+            # If you want to override bot appearances to get a certain visual effect, e.g. with
+            # specific boost colors, this is a good place to do it.
+            copied.loadout_config = load_bot_appearance(looks_configs[i], 0)
+        match_config.player_configs.append(copied)
+
+    manager = SetupManager()
+    manager.load_match_config(match_config, {})
+    manager.connect_to_game()
+    manager.start_match()
+
+
+def run_RLBotChoreography(queue):
+    """
+    If Hivemind breaks out of game_loop it is reloaded and recreated.
+    """
+    setup_match()
+
+    while True:
+        my_hivemind = hivemind.Hivemind(queue)
+        my_hivemind.start()
+
+        # Reloads hivemind for new changes to take place.
+        reload(hivemind)
+        
+        # Checks what to do after hivemind died.
+        command = queue.get()
+
+        # HACK This might not be the most reliable way to do it. Any other ideas?
+        if command == 'ALL':
+            setup_match()
+
 
 def run_gui(queue):
     """
@@ -48,71 +101,30 @@ def run_gui(queue):
     """
     import tkinter as tk
 
-    def stop_hivemind():
+    def reload_hive():
         print("[RLBotChoreography]: Stopping Hivemind.")
         queue.put('STOP')
+        # Reloading just the Hivemind.
+        queue.put('HIVE')
 
+    def reload_all():
+        print("[RLBotChoreography]: Stopping Hivemind.")
+        queue.put('STOP')
+        print("[RLBotChoreography]: Reloading all.")
+        queue.put('ALL')
+
+    # TODO Make GUI look better.
     root = tk.Tk()
     frame = tk.Frame(root)
     frame.pack()
 
-    restart = tk.Button(frame, text="↻", command=stop_hivemind)
-    restart.pack()
+    button_reload_hive = tk.Button(frame, text="↻ Hivemind", command=reload_hive)
+    button_reload_hive.pack()
+
+    button_reload_all = tk.Button(frame, text="↻ All", command=reload_all)
+    button_reload_all.pack()
 
     root.mainloop()
-
-
-def run_RLBotChoreography(queue):
-    """
-    If Hivemind breaks out of game_loop it is reloaded and recreated.
-    """
-    while True:
-        arguments = docopt(__doc__) # Maybe use info from GUI instead?
-
-        try:
-            # TODO Somehow get to this information without creating an unnecessary object.
-            # Consider a @staticmethod ?
-            num_bots = hivemind.Hivemind(None).choreo.num_bots
-            print('[RLBotChoreography]: Using the number of bots provided by the chosen choreography.')
-        except AttributeError:
-            num_bots = arguments['--num-bots']
-            print('[RLBotChoreography]: Using default or given number of bots.')
-        finally:
-            min_bots = min(int(num_bots), MAX_PLAYERS)
-
-        bot_directory = arguments['--bot-folder']
-        bundles = scan_directory_for_bot_configs(bot_directory)
-
-        # Set up RLBot.cfg
-        framework_config = create_bot_config_layout()
-        config_location = os.path.join(os.path.dirname(__file__), 'rlbot.cfg')
-        framework_config.parse_file(config_location, max_index=MAX_PLAYERS)
-        match_config = parse_match_config(framework_config, config_location, {}, {})
-
-        looks_configs = {idx: bundle.get_looks_config() for idx, bundle in enumerate(bundles)}
-        names = [bundle.name for bundle in bundles]
-
-        player_config = match_config.player_configs[0]
-        match_config.player_configs.clear()
-        for i in range(max(len(bundles), min_bots)):
-            copied = copy.copy(player_config)
-            if i < len(bundles):
-                copied.name = names[i]
-                # If you want to override bot appearances to get a certain visual effect, e.g. with
-                # specific boost colors, this is a good place to do it.
-                copied.loadout_config = load_bot_appearance(looks_configs[i], 0)
-            match_config.player_configs.append(copied)
-
-        manager = SetupManager()
-        manager.load_match_config(match_config, {})
-        manager.connect_to_game()
-        manager.start_match()
-
-        my_hivemind = hivemind.Hivemind(queue)
-        my_hivemind.start()
-        
-        # Reloads hivemind for new changes to take place.
-        reload(hivemind)
 
 
 if __name__ == '__main__':
@@ -123,95 +135,4 @@ if __name__ == '__main__':
     thread1.start()
     thread2 = Thread(target=run_gui, args=(q, ))
     thread2.start()  
-    q.join() 
-
-
-################################################################
-
-# VERSION 2
-
-# Only the hivemind is reloaded. Match never restarts.
-
-################################################################
-
-# def run_gui(queue):
-#     """
-#     Runs the simple gui.
-#     """
-#     import tkinter as tk
-#
-#     def stop_hivemind():
-#         print("[RLBotChoreography]: Stopping Hivemind.")
-#         queue.put('STOP')
-#
-#     root = tk.Tk()
-#     frame = tk.Frame(root)
-#     frame.pack()
-#
-#     restart = tk.Button(frame, text="↻", command=stop_hivemind)
-#     restart.pack()
-#
-#     root.mainloop()
-#
-#
-# def run_hivemind(queue):
-#     """
-#     If Hivemind breaks out of game_loop it is reloaded and recreated.
-#     """
-#     while True:
-#         my_hivemind = hivemind.Hivemind(queue)
-#         my_hivemind.start()
-#        
-#         # Reloads hivemind for new changes to take place.
-#         reload(hivemind)
-#
-#
-# if __name__ == '__main__':
-#     arguments = docopt(__doc__) # Maybe use info from GUI instead?
-#
-#     try:
-#         # TODO Somehow get to this information without creating an unnecessary object.
-#         # Consider a @staticmethod ?
-#         num_bots = hivemind.Hivemind(None).choreo.num_bots
-#         print('[RLBotChoreography]: Using the number of bots provided by the chosen choreography.')
-#     except AttributeError:
-#         num_bots = arguments['--num-bots']
-#         print('[RLBotChoreography]: Using default or given number of bots.')
-#     finally:
-#         min_bots = min(int(num_bots), MAX_PLAYERS)
-#
-#     bot_directory = arguments['--bot-folder']
-#     bundles = scan_directory_for_bot_configs(bot_directory)
-#
-#     # Set up RLBot.cfg
-#     framework_config = create_bot_config_layout()
-#     config_location = os.path.join(os.path.dirname(__file__), 'rlbot.cfg')
-#     framework_config.parse_file(config_location, max_index=MAX_PLAYERS)
-#     match_config = parse_match_config(framework_config, config_location, {}, {})
-#
-#     looks_configs = {idx: bundle.get_looks_config() for idx, bundle in enumerate(bundles)}
-#     names = [bundle.name for bundle in bundles]
-#
-#     player_config = match_config.player_configs[0]
-#     match_config.player_configs.clear()
-#     for i in range(max(len(bundles), min_bots)):
-#         copied = copy.copy(player_config)
-#         if i < len(bundles):
-#             copied.name = names[i]
-#             # If you want to override bot appearances to get a certain visual effect, e.g. with
-#             # specific boost colors, this is a good place to do it.
-#             copied.loadout_config = load_bot_appearance(looks_configs[i], 0)
-#         match_config.player_configs.append(copied)
-#
-#     manager = SetupManager()
-#     manager.load_match_config(match_config, {})
-#     manager.connect_to_game()
-#     manager.start_match()
-#
-#     # Runs GUI and Hivemind on two different threads.
-#     q = Queue()
-#     thread1 = Thread(target=run_hivemind, args=(q, ))
-#     thread1.start()
-#     thread2 = Thread(target=run_gui, args=(q, ))
-#     thread2.start()  
-#     q.join() 
+    q.join()
