@@ -9,14 +9,14 @@ from rlbot.utils.structures.game_interface import GameInterface
 import time
 import sys
 from pathlib import Path
+from importlib import reload
 
 sys.path.append(Path(__file__).resolve().parent)
 
-# Importing the chosen choreography:
-# from choreography.lightfall_choreography import LightfallChoreography
-# from choreography.crossing_squares import CrossingSquares
-from choreography.boids import Boids
 from choreography.drone import Drone
+
+# Importing the chosen choreography:
+import choreography.boids as my_choreography # TODO Somehow work this out in the GUI
 
 
 class Hivemind:
@@ -28,7 +28,7 @@ class Hivemind:
     # hivemind = the process which controls the drones.
     # drone = a bot under the hivemind's control.
 
-    def __init__(self):
+    def __init__(self, queue):
         # Sets up the logger. The string is the name of your hivemind.
         # Call this something unique so people can differentiate between hiveminds.
         self.logger = get_logger('Example Hivemind')
@@ -39,10 +39,13 @@ class Hivemind:
 
         self.drones = []
 
-        # The chosen choreoraphy to perform.
-        # TODO Set this based on input so it is easy to test different choreographies.
-        self.choreo = Boids(self.game_interface) # TODO Set this within GUI
+        # Reloads choreography.
+        reload(my_choreography)
+        self.choreo = my_choreography.Boids(self.game_interface) # TODO Set this within GUI
         self.choreo.generate_sequence()
+
+        # Set up queue to know when to stop and reload.
+        self.queue = queue
 
     def start(self):
         """Runs once, sets up the hivemind and its agents."""
@@ -114,7 +117,7 @@ class Hivemind:
                 self.game_interface.update_player_input(
                     convert_player_input(drone.ctrl), drone.index)
 
-            # Some example endering:
+            # Some example rendering:
 
             # draw.begin_rendering('Hivemind')
             # Renders drone indices.
@@ -127,7 +130,12 @@ class Hivemind:
         """
         Checks whether the hivemind should keep looping or should die.
         """
-        return True
+        if self.queue.empty():
+            return True
+            
+        else:
+            message = self.queue.get()
+            return message != 'STOP'
 
 
 def convert_player_input(ctrl: SimpleControllerState) -> PlayerInput:
