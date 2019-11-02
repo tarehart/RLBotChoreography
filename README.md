@@ -17,11 +17,11 @@ Rocket League. It's useful for making cool synchronized performances.
 
 In a command prompt, in this directory, run `python ChoreographyHive`
 
-You can also pass arguments like `python ChoreographyHive --bot-folder=C:/some/path --min-bots=64`
+You can also pass arguments like `python ChoreographyHive --bot-folder=C:/some/path --num-bots=64`
 
 - If you have a bunch of bots in your bot folder (e.g. maybe you grabbed https://github.com/RLBot/RLBotPack),
 we will find all the bots there and use their appearances for the drones. There will be one drone spawned for each.
-- If you have a small (or missing) bot folder but still want tons of drones, you can use min-bots spawn extras
+- If you have a small (or missing) bot folder but still want tons of drones, you can use `num-bots` spawn extras
 until you reach the specified number. We max out at 64, which is a RLBot framework constraint.
 
 ## Origins
