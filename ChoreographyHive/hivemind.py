@@ -88,47 +88,45 @@ class Hivemind:
             # Checking if packet is new, otherwise sleep.
             if prev_time == packet.game_info.seconds_elapsed:
                 time.sleep(0.001)
+                continue
 
-            else:
+            # Create a Drone object for every drone that holds its information.
+            if packet.num_cars > len(self.drones):
+                # Clears the list if there are more cars than drones.
+                self.drones.clear()
+                for index in range(packet.num_cars):
+                    self.drones.append(Drone(index, packet.game_cars[index].team))
 
-                # Create a Drone object for every drone that holds its information.
-                if packet.num_cars > len(self.drones):
-                    # Clears the list if there are more cars than drones.
-                    self.drones.clear()
-                    for index in range(packet.num_cars):
-                        self.drones.append(Drone(index, packet.game_cars[index].team))
+            # Processing drone data.
+            for drone in self.drones:
+                drone.update(packet.game_cars[drone.index])
 
-                # Processing drone data.
-                for drone in self.drones:
-                    drone.update(packet.game_cars[drone.index])
+            # Steps through the choreography.
+            self.choreo.step(packet, self.drones)
 
-                # Steps through the choreography.
-                self.choreo.step(packet, self.drones)
+            # Resets choreography once it has finished.
+            if self.choreo.finished:
+                self.choreo = Boids(self.game_interface) # TODO Set this within GUI
+                self.choreo.generate_sequence()
 
-                # Resets choreography once it has finished.
-                if self.choreo.finished:
-                    self.choreo = Boids(self.game_interface) # TODO Set this within GUI
-                    self.choreo.generate_sequence()
+            # Sends the drone inputs to the drones.
+            for drone in self.drones:
+                self.game_interface.update_player_input(
+                    convert_player_input(drone.ctrl), drone.index)
 
-                # Sends the drone inputs to the drones.
-                for drone in self.drones:
-                    self.game_interface.update_player_input(
-                        convert_player_input(drone.ctrl), drone.index)
+            # Some example endering:
 
-                # Some example endering:
-
-                # draw.begin_rendering('Hivemind')
-                # Renders drone indices.
-                # for drone in self.drones:
-                #     draw.draw_string_3d(drone.pos, 1, 1, str(
-                #         drone.index), draw.white())
-                # draw.end_rendering()
+            # draw.begin_rendering('Hivemind')
+            # Renders drone indices.
+            # for drone in self.drones:
+            #     draw.draw_string_3d(drone.pos, 1, 1, str(
+            #         drone.index), draw.white())
+            # draw.end_rendering()
 
     def loop_check(self):
         """
         Checks whether the hivemind should keep looping or should die.
         """
-        # TODO Check if should die here.
         return True
 
 

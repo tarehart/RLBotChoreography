@@ -14,6 +14,7 @@ import os
 import sys
 import time
 from docopt import docopt
+from importlib import reload
 
 from rlbot.matchconfig.conversions import parse_match_config
 from rlbot.parsing.agent_config_parser import load_bot_appearance
@@ -31,8 +32,6 @@ if __name__ == '__main__':
     # TODO GUI
     # Should allow you to choose choreography
     # Restarting (break in game_loop)
-
-    # TODO Do a test
 
     try:
         # TODO Somehow get to this information without creating an unnecessary object.
@@ -73,5 +72,10 @@ if __name__ == '__main__':
     manager.connect_to_game()
     manager.start_match()
 
-    hivemind = Hivemind()
-    hivemind.start()
+    # If Hivemind somehow quits game_loop, it is reloaded and recreated.
+    while True:
+        hivemind = Hivemind()
+        hivemind.start()
+        
+        # Reloads the Hivemind for new changes to take place.
+        reload(sys.modules[Hivemind.__module__])
