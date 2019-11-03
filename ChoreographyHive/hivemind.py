@@ -109,7 +109,8 @@ class Hivemind:
 
             # Resets choreography once it has finished.
             if self.choreo.finished:
-                self.choreo = Boids(self.game_interface) # TODO Set this within GUI
+                # Re-instantiates the choreography.
+                self.choreo = self.choreo.__class__(self.game_interface)
                 self.choreo.generate_sequence()
 
             # Sends the drone inputs to the drones.
