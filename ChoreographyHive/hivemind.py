@@ -31,7 +31,7 @@ class Hivemind:
     def __init__(self, queue):
         # Sets up the logger. The string is the name of your hivemind.
         # Call this something unique so people can differentiate between hiveminds.
-        self.logger = get_logger('Example Hivemind')
+        self.logger = get_logger('Choreography Hivemind')
 
         # The game interface is how you get access to things
         # like ball prediction, the game tick packet, or rendering.
@@ -78,9 +78,6 @@ class Hivemind:
         # Creating packet which will be updated every tick.
         packet = GameTickPacket()
 
-        # Nicknames the renderer to shorten code.
-        draw = self.game_interface.renderer
-
         # MAIN LOOP:
         while self.loop_check():
 
@@ -117,15 +114,6 @@ class Hivemind:
             for drone in self.drones:
                 self.game_interface.update_player_input(
                     convert_player_input(drone.ctrl), drone.index)
-
-            # Some example rendering:
-
-            # draw.begin_rendering('Hivemind')
-            # Renders drone indices.
-            # for drone in self.drones:
-            #     draw.draw_string_3d(drone.pos, 1, 1, str(
-            #         drone.index), draw.white())
-            # draw.end_rendering()
 
     def loop_check(self):
         """
