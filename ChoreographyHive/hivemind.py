@@ -7,16 +7,12 @@ from rlbot.utils.structures.game_data_struct import GameTickPacket, FieldInfoPac
 from rlbot.utils.structures.game_interface import GameInterface
 
 import time
-import sys
-from pathlib import Path
 from importlib import reload
-
-sys.path.append(Path(__file__).resolve().parent)
 
 from choreography.drone import Drone
 
 # Importing the chosen choreography:
-import choreography.choreos.boids as my_choreography # TODO Somehow work this out in the GUI
+# import choreography.choreos.boids as my_choreography # TODO Somehow work this out in the GUI
 
 
 class Hivemind:

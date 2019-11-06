@@ -12,6 +12,7 @@ Options:
 import copy
 import os
 import sys
+import inspect
 import time
 from docopt import docopt
 from importlib import reload
@@ -26,23 +27,12 @@ from rlbot.setup_manager import SetupManager
 from rlbot.utils.structures.start_match_structures import MAX_PLAYERS
 
 import hivemind
-from choreography.choreography import Choreography
-
-for module in choreography.choreos:
-    import module
 
 # TODO:
 # - Remove docstring
 # - Start GUI first
 # - Choose module with choreography to import
 # - Choose class within module
-    # import sys, inspect
-    # def print_classes():
-    #     for name, obj in inspect.getmembers(sys.modules[__name__]):
-    #         if issubclass(obj, Choreography):
-    #             print(obj)
-    #             pass
-
 # - Allow to specify num-bots (Needs to somehow get the number from selected choreography)
 # - Only start once selected
 
@@ -112,14 +102,32 @@ def run_gui(queue):
     """
     Runs the simple gui.
     """
-    import tkinter as tk
-    import sys
-    import inspect
+    import tkinter as tk  
 
     def find_choreographies():
-        for name, obj in inspect.getmembers(sys.modules[__name__]):
-            if issubclass(obj, Choreography):
-                print(obj)
+        """
+        Finds all classes subclassing Choreography in the choreos directory.
+        """
+        # Importing the parent class.
+        from choreography.choreography import Choreography
+        import choreography.choreos
+
+        choreographies = {}
+
+        # HACK This seems non-standard, but it was the only thing that worked so far.
+        for choreo in choreography.choreos.__all__:
+            module = f'choreography.choreos.{choreo}'
+            __import__(module, locals(), globals())
+
+            # Finds the classes in the module.
+            classes = inspect.getmembers(sys.modules[module], inspect.isclass)
+            for name, obj in classes:
+                # Checks whether the class subclasses Choreography.
+                if issubclass(obj, Choreography):
+                    # FIXME Watch out for name conflicts!
+                    choreographies[name] = {'module': module, 'obj': obj}
+
+        return choreographies
 
     def reload_hive():
         print("[RLBotChoreography]: Stopping Hivemind.")
@@ -134,17 +142,25 @@ def run_gui(queue):
         queue.put('ALL')
 
     # TODO Make GUI look better.
-    find_choreographies()
 
     root = tk.Tk()
     frame = tk.Frame(root)
     frame.pack()
 
+    # Hive reset button.
     button_reload_hive = tk.Button(frame, text="↻ Hivemind", command=reload_hive)
     button_reload_hive.pack()
-
+        
+    # All reset button.
     button_reload_all = tk.Button(frame, text="↻ All", command=reload_all)
     button_reload_all.pack()
+
+    # Dropdown menu.
+    menuvar = tk.StringVar(root)
+    menuvar.set('LightfallChoreography') # set the default option
+    choreographies = find_choreographies()
+    dropMenu = tk.OptionMenu(frame, menuvar, *choreographies)
+    dropMenu.pack()
 
     root.mainloop()
 
@@ -156,5 +172,5 @@ if __name__ == '__main__':
     thread1 = Thread(target=run_gui, args=(q, ))
     thread1.start()  
     thread2 = Thread(target=run_RLBotChoreography, args=(q, ))
-    thread2.start()
+    #thread2.start()
     q.join()
