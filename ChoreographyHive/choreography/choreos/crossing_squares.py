@@ -17,7 +17,6 @@ class CrossingSquares(Choreography):
     def __init__(self, game_interface: GameInterface):
         super().__init__()
         self.game_interface = game_interface
-        self.num_bots = 32
 
     def generate_sequence(self):
         self.sequence.clear()
@@ -29,6 +28,10 @@ class CrossingSquares(Choreography):
         self.sequence.append(DroneListStep(self.delayed_start))
         self.sequence.append(DroneListStep(self.interweave))
         self.sequence.append(BlindBehaviorStep(SimpleControllerState(), pause_time))
+
+    @staticmethod
+    def get_num_bots() -> int:
+        return 32
 
         
     def hide_ball(self, packet, drones, start_time) -> StepResult:
