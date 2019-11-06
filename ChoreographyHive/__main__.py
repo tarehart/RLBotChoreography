@@ -26,20 +26,33 @@ from rlbot.setup_manager import SetupManager
 from rlbot.utils.structures.start_match_structures import MAX_PLAYERS
 
 import hivemind
+from choreography.choreography import Choreography
 
-# TODO GUI
-# Should allow you to choose choreography
-# Maybe allow to specify num-bots?
+for module in choreography.choreos:
+    import module
+
+# TODO:
+# - Remove docstring
+# - Start GUI first
+# - Choose module with choreography to import
+# - Choose class within module
+    # import sys, inspect
+    # def print_classes():
+    #     for name, obj in inspect.getmembers(sys.modules[__name__]):
+    #         if issubclass(obj, Choreography):
+    #             print(obj)
+    #             pass
+
+# - Allow to specify num-bots (Needs to somehow get the number from selected choreography)
+# - Only start once selected
 
 def setup_match():
     arguments = docopt(__doc__) # Maybe use info from GUI instead?
 
     try:
-        # TODO Somehow get to this information without creating an unnecessary object.
-        # Consider a @staticmethod ?
-        num_bots = hivemind.Hivemind(None).choreo.num_bots
+        num_bots = hivemind.Hivemind(None).choreo.get_num_bots() # FIXME
         print('[RLBotChoreography]: Using the number of bots provided by the chosen choreography.')
-    except AttributeError:
+    except NotImplementedError:
         num_bots = arguments['--num-bots']
         print('[RLBotChoreography]: Using default or given number of bots.')
     finally:
@@ -100,6 +113,13 @@ def run_gui(queue):
     Runs the simple gui.
     """
     import tkinter as tk
+    import sys
+    import inspect
+
+    def find_choreographies():
+        for name, obj in inspect.getmembers(sys.modules[__name__]):
+            if issubclass(obj, Choreography):
+                print(obj)
 
     def reload_hive():
         print("[RLBotChoreography]: Stopping Hivemind.")
@@ -114,6 +134,8 @@ def run_gui(queue):
         queue.put('ALL')
 
     # TODO Make GUI look better.
+    find_choreographies()
+
     root = tk.Tk()
     frame = tk.Frame(root)
     frame.pack()
@@ -131,8 +153,8 @@ if __name__ == '__main__':
 
     # Runs GUI and Hivemind on two different threads.
     q = Queue()
-    thread1 = Thread(target=run_RLBotChoreography, args=(q, ))
-    thread1.start()
-    thread2 = Thread(target=run_gui, args=(q, ))
-    thread2.start()  
+    thread1 = Thread(target=run_gui, args=(q, ))
+    thread1.start()  
+    thread2 = Thread(target=run_RLBotChoreography, args=(q, ))
+    thread2.start()
     q.join()

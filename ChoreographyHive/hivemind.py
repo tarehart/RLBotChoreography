@@ -16,7 +16,7 @@ sys.path.append(Path(__file__).resolve().parent)
 from choreography.drone import Drone
 
 # Importing the chosen choreography:
-import choreography.boids as my_choreography # TODO Somehow work this out in the GUI
+import choreography.choreos.boids as my_choreography # TODO Somehow work this out in the GUI
 
 
 class Hivemind:
