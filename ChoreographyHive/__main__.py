@@ -1,12 +1,11 @@
 """RLBotChoreography
 
 Usage:
-    ChoreographyHive [--num-bots=<num>] [--bot-folder=<folder>]
+    ChoreographyHive [--bot-folder=<folder>]
     ChoreographyHive (-h | --help)
 
 Options:
     -h --help               Shows this help message.
-    --num-bots=<num>        The number of bots to spawn [default: 10].
     --bot-folder=<folder>   Searches this folder for bot configs to use for names and appearances [default: .].
 """
 import copy
@@ -29,12 +28,9 @@ from rlbot.utils.structures.start_match_structures import MAX_PLAYERS
 import hivemind
 
 # TODO:
-# - Remove docstring
-# - Start GUI first
-# - Choose module with choreography to import
-# - Choose class within module
-# - Allow to specify num-bots (Needs to somehow get the number from selected choreography)
-# - Only start once selected
+# - Get info from GUI thread to RLBotChoreo thread
+# - Import correct module in hivemind and use right choreography obj
+# - Prettify GUI
 
 def setup_match():
     arguments = docopt(__doc__) # Maybe use info from GUI instead?
@@ -81,11 +77,15 @@ def run_RLBotChoreography(queue):
     """
     If Hivemind breaks out of game_loop it is reloaded and recreated.
     """
+    # Waits until a START command is received.
+    while queue.get() != QCommand.START:
+        continue
+    
     setup_match()
 
     while True:
         my_hivemind = hivemind.Hivemind(queue)
-        my_hivemind.start()
+        my_hivemind.start() # Loop only quits on STOP command.
 
         # Reloads hivemind for new changes to take place.
         reload(hivemind)
@@ -93,8 +93,7 @@ def run_RLBotChoreography(queue):
         # Checks what to do after hivemind died.
         command = queue.get()
 
-        # HACK This might not be the most reliable way to do it. Any other ideas?
-        if command == 'ALL':
+        if command == QCommand.ALL:
             setup_match()
 
 
@@ -117,35 +116,58 @@ def run_gui(queue):
         # HACK This seems non-standard, but it was the only thing that worked so far.
         for choreo in choreography.choreos.__all__:
             module = f'choreography.choreos.{choreo}'
-            __import__(module, locals(), globals())
+            __import__(module)
 
             # Finds the classes in the module.
             classes = inspect.getmembers(sys.modules[module], inspect.isclass)
             for name, obj in classes:
                 # Checks whether the class subclasses Choreography.
-                if issubclass(obj, Choreography):
+                if issubclass(obj, Choreography) and obj is not Choreography:
                     # FIXME Watch out for name conflicts!
                     choreographies[name] = {'module': module, 'obj': obj}
 
         return choreographies
 
+    def start():
+        print("[RLBotChoreography]: Starting up!")
+        queue.put(QCommand.START)
+        button_start.destroy() # Removes the button so we cannot start again.
+
+    def choreo_selected(var):
+        """
+        Updates the bot number entry box with the given number in the choreography (if there is one).
+        """
+        try:
+            num_bots = choreographies[var]['obj'].get_num_bots()
+        except NotImplementedError:
+            num_bots = 10
+        finally:
+            min_bots = min(int(num_bots), MAX_PLAYERS)
+
+        entry_num_bots.delete(0, last=tk.END)
+        entry_num_bots.insert(0, min_bots)
+
     def reload_hive():
         print("[RLBotChoreography]: Stopping Hivemind.")
-        queue.put('STOP')
+        queue.put(QCommand.STOP)
         # Reloading just the Hivemind.
-        queue.put('HIVE')
+        queue.put(QCommand.HIVE)
 
     def reload_all():
         print("[RLBotChoreography]: Stopping Hivemind.")
-        queue.put('STOP')
+        queue.put(QCommand.STOP)
         print("[RLBotChoreography]: Reloading all.")
-        queue.put('ALL')
+        queue.put(QCommand.ALL)
 
     # TODO Make GUI look better.
 
     root = tk.Tk()
     frame = tk.Frame(root)
     frame.pack()
+
+    # Start button.
+    button_start = tk.Button(frame, text="Start", command=start)
+    button_start.pack()
 
     # Hive reset button.
     button_reload_hive = tk.Button(frame, text="↻ Hivemind", command=reload_hive)
@@ -156,14 +178,26 @@ def run_gui(queue):
     button_reload_all.pack()
 
     # Dropdown menu.
+    choreographies = find_choreographies()
     menuvar = tk.StringVar(root)
     menuvar.set('LightfallChoreography') # set the default option
-    choreographies = find_choreographies()
-    dropMenu = tk.OptionMenu(frame, menuvar, *choreographies)
+    dropMenu = tk.OptionMenu(frame, menuvar, *choreographies, command=choreo_selected)
     dropMenu.pack()
+
+    label_num_bots = tk.Label(frame, text="Number of bots")
+    label_num_bots.pack()
+
+    entry_num_bots = tk.Entry(frame)
+    entry_num_bots.pack()
+    entry_num_bots.insert(0, 10)
 
     root.mainloop()
 
+class QCommand:
+    START = 0
+    STOP = 1
+    HIVE = 2
+    ALL = 3
 
 if __name__ == '__main__':
 
@@ -172,5 +206,5 @@ if __name__ == '__main__':
     thread1 = Thread(target=run_gui, args=(q, ))
     thread1.start()  
     thread2 = Thread(target=run_RLBotChoreography, args=(q, ))
-    #thread2.start()
+    thread2.start()
     q.join()
