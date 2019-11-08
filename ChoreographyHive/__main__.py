@@ -35,14 +35,16 @@ import hivemind
 def setup_match():
     arguments = docopt(__doc__) # Maybe use info from GUI instead?
 
-    try:
-        num_bots = hivemind.Hivemind(None).choreo.get_num_bots() # FIXME
-        print('[RLBotChoreography]: Using the number of bots provided by the chosen choreography.')
-    except NotImplementedError:
-        num_bots = arguments['--num-bots']
-        print('[RLBotChoreography]: Using default or given number of bots.')
-    finally:
-        min_bots = min(int(num_bots), MAX_PLAYERS)
+    # try:
+    #     num_bots = hivemind.Hivemind(None).choreo.get_num_bots()
+    #     print('[RLBotChoreography]: Using the number of bots provided by the chosen choreography.')
+    # except NotImplementedError:
+    #     num_bots = arguments['--num-bots']
+    #     print('[RLBotChoreography]: Using default or given number of bots.')
+    # finally:
+    #     min_bots = min(int(num_bots), MAX_PLAYERS)
+
+    # TODO Access GUI info somehow
 
     bot_directory = arguments['--bot-folder']
     bundles = scan_directory_for_bot_configs(bot_directory)
@@ -58,7 +60,7 @@ def setup_match():
 
     player_config = match_config.player_configs[0]
     match_config.player_configs.clear()
-    for i in range(max(len(bundles), min_bots)):
+    for i in range(max(len(bundles), min_bots)): # FIXME
         copied = copy.copy(player_config)
         if i < len(bundles):
             copied.name = names[i]
@@ -84,6 +86,8 @@ def run_RLBotChoreography(queue):
     setup_match()
 
     while True:
+        # TODO Get info from GUI and tell hivemind what obj to use.
+        # Maybe like this: hivemind.Hivemind(queue, obj_from_gui()) ?
         my_hivemind = hivemind.Hivemind(queue)
         my_hivemind.start() # Loop only quits on STOP command.
 
@@ -124,7 +128,7 @@ def run_gui(queue):
                 # Checks whether the class subclasses Choreography.
                 if issubclass(obj, Choreography) and obj is not Choreography:
                     # FIXME Watch out for name conflicts!
-                    choreographies[name] = {'module': module, 'obj': obj}
+                    choreographies[name] = {'module': module, 'obj': obj} # TODO Might not need to save which module it came from?
 
         return choreographies
 
