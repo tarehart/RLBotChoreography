@@ -7,13 +7,9 @@ from rlbot.utils.structures.game_data_struct import GameTickPacket, FieldInfoPac
 from rlbot.utils.structures.game_interface import GameInterface
 
 import time
-from importlib import reload
 
 from choreography.drone import Drone
-
-# Importing the chosen choreography:
-# import choreography.choreos.boids as my_choreography # TODO Somehow work this out in the GUI
-
+from queue_commands import QCommand
 
 class Hivemind:
     """
@@ -24,7 +20,7 @@ class Hivemind:
     # hivemind = the process which controls the drones.
     # drone = a bot under the hivemind's control.
 
-    def __init__(self, queue):
+    def __init__(self, queue, choreo_obj):
         # Sets up the logger. The string is the name of your hivemind.
         # Call this something unique so people can differentiate between hiveminds.
         self.logger = get_logger('Choreography Hivemind')
@@ -35,9 +31,7 @@ class Hivemind:
 
         self.drones = []
 
-        # Reloads choreography.
-        reload(my_choreography)
-        self.choreo = my_choreography.Boids(self.game_interface) # TODO Set this within GUI
+        self.choreo = choreo_obj(self.game_interface)
         self.choreo.generate_sequence()
 
         # Set up queue to know when to stop and reload.
@@ -76,6 +70,7 @@ class Hivemind:
 
         # MAIN LOOP:
         while self.loop_check():
+            #print('test')
 
             prev_time = packet.game_info.seconds_elapsed
             # Updating the game tick packet.
@@ -120,7 +115,7 @@ class Hivemind:
             
         else:
             message = self.queue.get()
-            return message != 'STOP'
+            return message != QCommand.STOP
 
 
 def convert_player_input(ctrl: SimpleControllerState) -> PlayerInput:
