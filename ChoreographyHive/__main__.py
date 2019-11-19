@@ -28,8 +28,13 @@ from rlbot.utils.structures.start_match_structures import MAX_PLAYERS
 from queue_commands import QCommand
 # Importing the parent class.
 from choreography.choreography import Choreography
-import choreography.choreos
 import hivemind
+
+# Automatically imports all choreo modules.
+from os.path import dirname, basename, isfile, join
+import glob
+modules = glob.glob(join(dirname(__file__), "choreography/choreos/*.py"))
+choreo_modules = [basename(f)[:-3] for f in modules if isfile(f) and not f.endswith('__init__.py')]
 
 # TODO:
 # - Fix choreography reloading
@@ -93,12 +98,9 @@ class RLBotChoreography:
             my_hivemind.start() # Loop only quits on STOP command.
 
             # Reloads hivemind for new changes to take place.
-            # mod = __import__(choreo_module)
-            # print(sys.modules[choreo_obj.__module__] is mod.choreos.boids)
             reload(sys.modules[self.choreo_obj.__module__])
-            print(sys.modules[self.choreo_obj.__module__])
             reload(hivemind)
-            
+
             # Checks what to do after Hivemind died.
             command = queue.get()
             if command == QCommand.ALL:
@@ -122,7 +124,7 @@ class RLBotChoreography:
             choreographies = {}
 
             # HACK This seems non-standard, but it was the only thing that worked so far.
-            for choreo in choreography.choreos.__all__:
+            for choreo in choreo_modules:
                 module = f'choreography.choreos.{choreo}'
                 import_module(module)
 
@@ -176,6 +178,8 @@ class RLBotChoreography:
         def reload_hive():
             num_bots_changed()
             print("[RLBotChoreography]: Stopping Hivemind.")
+            # OBJECT THAT IS CREATED IS NOT RELOADED!
+
             queue.put(QCommand.STOP)
             print("[RLBotChoreography]: Reloading Hivemind.")
             queue.put(QCommand.HIVE)
