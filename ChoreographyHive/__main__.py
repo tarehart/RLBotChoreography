@@ -17,6 +17,8 @@ from docopt import docopt
 from importlib import reload, import_module
 from queue import Queue 
 from threading import Thread 
+from os.path import dirname, basename, isfile, join
+import glob
 
 from rlbot.matchconfig.conversions import parse_match_config
 from rlbot.parsing.agent_config_parser import load_bot_appearance
@@ -25,19 +27,12 @@ from rlbot.parsing.rlbot_config_parser import create_bot_config_layout
 from rlbot.setup_manager import SetupManager
 from rlbot.utils.structures.start_match_structures import MAX_PLAYERS
 
-from queue_commands import QCommand
-# Importing the parent class.
-from choreography.choreography import Choreography
 import hivemind
-
-# Automatically imports all choreo modules.
-from os.path import dirname, basename, isfile, join
-import glob
-modules = glob.glob(join(dirname(__file__), "choreography/choreos/*.py"))
-choreo_modules = [basename(f)[:-3] for f in modules if isfile(f) and not f.endswith('__init__.py')]
+from queue_commands import QCommand
+from choreography.choreography import Choreography
 
 # TODO:
-# - Fix choreography reloading
+# - Do bot-folder from inside the GUI
 # - Prettify GUI
 class RLBotChoreography:
 
@@ -52,7 +47,8 @@ class RLBotChoreography:
 
 
     def setup_match(self):
-        arguments = docopt(__doc__) # Maybe use info from GUI instead?
+        # TODO This should be replaced?
+        arguments = docopt(__doc__)
 
         bot_directory = arguments['--bot-folder']
         bundles = scan_directory_for_bot_configs(bot_directory)
@@ -98,7 +94,7 @@ class RLBotChoreography:
             my_hivemind.start() # Loop only quits on STOP command.
 
             # Reloads hivemind for new changes to take place.
-            reload(sys.modules[self.choreo_obj.__module__])
+            # reload(sys.modules[self.choreo_obj.__module__])
             reload(hivemind)
 
             # Checks what to do after Hivemind died.
@@ -116,25 +112,36 @@ class RLBotChoreography:
         Runs the simple gui.
         """
 
-        def find_choreographies():
+        def reload_choreographies():
             """
-            Finds all classes subclassing Choreography in the choreos directory.
+            Finds and reloads all choreo modules and puts the found choreographies inside a dictionary.
             """
+            # Automatically finds all choreo modules.
+            modules = glob.glob(join(dirname(__file__), "choreography/choreos/*.py"))
+            choreo_modules = [basename(f)[:-3] for f in modules if isfile(f) and not f.endswith('__init__.py')]
 
             choreographies = {}
-
-            # HACK This seems non-standard, but it was the only thing that worked so far.
             for choreo in choreo_modules:
                 module = f'choreography.choreos.{choreo}'
-                import_module(module)
 
-                # Finds the classes in the module.
-                classes = inspect.getmembers(sys.modules[module], inspect.isclass)
-                for name, obj in classes:
-                    # Checks whether the class subclasses Choreography.
-                    if issubclass(obj, Choreography) and obj is not Choreography:
-                        # FIXME Watch out for name conflicts!
-                        choreographies[name] = {'module': module, 'obj': obj} # TODO Might not need to save which module it came from?
+                # Try reloading the module.
+                try:
+                    reload(sys.modules[module])
+                    classes = inspect.getmembers(sys.modules[module], inspect.isclass)
+
+                # If not loaded yet, import it.
+                except Exception as e:
+                    print('THIS IS YOUR DEBUG MESSAGE!', e)
+                    import_module(module)
+                    classes = inspect.getmembers(sys.modules[module], inspect.isclass)
+
+                # Find all the choreography classes inside.
+                finally:
+                    for name, obj in classes:
+                        # Checks whether the class subclasses Choreography.
+                        if issubclass(obj, Choreography) and obj is not Choreography:
+                            # FIXME Watch out for name conflicts!
+                            choreographies[name] = obj
 
             return choreographies
 
@@ -171,16 +178,15 @@ class RLBotChoreography:
             """
             Updates the selected choreography.
             """
-            self.choreo_obj = choreographies[var]['obj']
-            self.choreo_module = choreographies[var]['module']
+            self.choreographies = reload_choreographies()
+            self.choreo_obj = self.choreographies[var]
             num_bots_changed()
 
         def reload_hive():
             num_bots_changed()
             print("[RLBotChoreography]: Stopping Hivemind.")
-            # OBJECT THAT IS CREATED IS NOT RELOADED!
-
             queue.put(QCommand.STOP)
+            choreo_selected(menuvar.get())
             print("[RLBotChoreography]: Reloading Hivemind.")
             queue.put(QCommand.HIVE)
 
@@ -188,6 +194,7 @@ class RLBotChoreography:
             num_bots_changed()
             print("[RLBotChoreography]: Stopping Hivemind.")
             queue.put(QCommand.STOP)
+            choreo_selected(menuvar.get())
             print("[RLBotChoreography]: Reloading all.")
             queue.put(QCommand.ALL)
 
@@ -203,10 +210,10 @@ class RLBotChoreography:
         button_start.pack()
 
         # Dropdown menu.
-        choreographies = find_choreographies()
+        self.choreographies = reload_choreographies()
         menuvar = tk.StringVar(root)
-        menuvar.set('LightfallChoreography') # set the default option
-        dropMenu = tk.OptionMenu(frame, menuvar, *choreographies, command=choreo_selected)
+        menuvar.set('LightfallChoreography') # Set the default option
+        dropMenu = tk.OptionMenu(frame, menuvar, *self.choreographies, command=choreo_selected)
         dropMenu.pack()
 
         # Label for the entry box.
