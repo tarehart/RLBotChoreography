@@ -23,6 +23,10 @@ Other settings can be customised through the GUI.
 - If you have a bunch of bots in your bot folder (e.g. maybe you grabbed https://github.com/RLBot/RLBotPack),
 we will find all the bots there and use their appearances for the drones. There will be one drone spawned for each.
 
+## Tutorial
+
+Check out https://www.youtube.com/watch?v=F3OpOdUavfw
+
 ## Origins
 
 This is based on 'hivemind' code shared by Viliam Vadocz.
