@@ -23,3 +23,7 @@ class Choreography:
 
     def generate_sequence(self):
         pass
+
+    @staticmethod
+    def get_num_bots():
+        raise NotImplementedError

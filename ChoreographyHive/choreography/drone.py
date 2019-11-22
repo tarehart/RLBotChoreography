@@ -26,6 +26,33 @@ class Drone:
         self.ctrl = SimpleControllerState()
 
 
+def seek_pos(drone, position, max_speed=1410):
+    """
+    Tries to intelligently drive so it stops at a given position.
+    """
+
+    # Get speed.
+    speed = np.linalg.norm(drone.vel)
+            
+    # Simplified speed controller.
+    if speed < max_speed:
+        drone.ctrl.throttle = 1.0
+    else:
+        drone.ctrl.throttle = 0.0
+        
+    def special_sauce(x, a):
+        """Modified sigmoid to smooth out steering."""
+        # Graph: https://www.geogebra.org/m/udfp2zcy
+        return 2 / (1 + np.exp(a * x)) - 1
+
+    # Calculates the 2D angle to the position. Positive is clockwise.
+    local_target = local(drone.orient_m, drone.pos, position)
+    angle = np.arctan2(local_target[1], local_target[0])
+
+    # Calculates steer.
+    drone.ctrl.steer = special_sauce(angle, -5)
+
+
 def slow_to_pos(drone, position):
     # Calculate distance and velocity.
     distance = np.linalg.norm(position - drone.pos)
@@ -53,6 +80,42 @@ def slow_to_pos(drone, position):
         drone.ctrl.throttle = cap(0.3 * distance - 0.2 * velocity, -1.0, 1.0)
         if distance > 1000:
             drone.ctrl.boost = True
+
+
+def slow_to_pos2(drone, position):
+    """
+    Tries to intelligently drive so it stops at a given position.
+    """
+    TURN_DIS = 800 # Slows down for turns when farther than this.
+    TURN_SLOW = 300 # Maximum speed slowdown for turning.
+    STOP_DIS = 40 # Stops if closer than this.
+
+    def special_sauce(x, a):
+        """Modified sigmoid function."""
+        return 2 / (1 + np.exp(a * x)) - 1
+
+    # Get distance and speed.
+    distance = np.linalg.norm(position - drone.pos)
+    speed = np.linalg.norm(drone.vel)
+
+    # Calculates the 2D angle to the position. Positive is clockwise.
+    local_target = local(drone.orient_m, drone.pos, position)
+    angle = np.arctan2(local_target[1], local_target[0])
+
+    # Calculates steer
+    drone.ctrl.steer = special_sauce(angle, -5)
+        
+    # Manages desired speed so that cars slow down when close and when turning.
+    desired_speed = distance/2
+    if distance > TURN_DIS:
+        desired_speed -= TURN_SLOW * special_sauce(angle, -2)
+    desired_speed = cap(desired_speed, 0.0, 2300.0)
+        
+    # Simplified speed controller.
+    if speed < desired_speed and distance > STOP_DIS:
+        drone.ctrl.throttle = 1.0
+    else:
+        drone.ctrl.throttle = 0.0
 
 
 def turn_to_pos(drone, position, game_time):    
@@ -108,7 +171,7 @@ def local(A: np.ndarray, p0: np.ndarray, p1: np.ndarray) -> np.ndarray:
 
 
 def cap(value: float, minimum: float, maximum: float) -> float:
-    """Caps the value at given minumum and maximum.
+    """Caps the value at given minimum and maximum.
 
     Arguments:
         value {float} -- The value being capped.
@@ -130,7 +193,7 @@ def a3l(l: list) -> np.ndarray:
     """Converts list to numpy array.
 
     Arguments:
-        L {list} -- The list to convert containing 3 elemets.
+        L {list} -- The list to convert containing 3 elements.
 
     Returns:
         np.array -- Numpy array with the same contents as the list.
@@ -160,6 +223,22 @@ def a3v(v: Vector3) -> np.ndarray:
         np.ndarray -- Numpy array with the same contents as the vector3.
     """
     return np.array([v.x, v.y, v.z])
+
+
+def normalise(V : np.ndarray) -> np.ndarray:
+    """Normalises a vector.
+    
+    Arguments:
+        V {np.ndarray} -- Vector.
+    
+    Returns:
+        np.ndarray -- Normalised vector.
+    """
+    magnitude = np.linalg.norm(V)
+    if magnitude != 0.0:
+        return V / magnitude
+    else:
+        return V
 
 
 def orient_matrix(R: np.ndarray) -> np.ndarray:

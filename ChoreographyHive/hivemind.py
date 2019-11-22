@@ -7,14 +7,9 @@ from rlbot.utils.structures.game_data_struct import GameTickPacket, FieldInfoPac
 from rlbot.utils.structures.game_interface import GameInterface
 
 import time
-import sys
-from pathlib import Path
 
-sys.path.append(Path(__file__).resolve().parent)
-
-from choreography.lightfall_choreography import LightfallChoreography
 from choreography.drone import Drone
-
+from queue_commands import QCommand
 
 class Hivemind:
     """
@@ -25,10 +20,10 @@ class Hivemind:
     # hivemind = the process which controls the drones.
     # drone = a bot under the hivemind's control.
 
-    def __init__(self):
+    def __init__(self, queue, choreo_obj):
         # Sets up the logger. The string is the name of your hivemind.
         # Call this something unique so people can differentiate between hiveminds.
-        self.logger = get_logger('Example Hivemind')
+        self.logger = get_logger('Choreography Hivemind')
 
         # The game interface is how you get access to things
         # like ball prediction, the game tick packet, or rendering.
@@ -36,8 +31,11 @@ class Hivemind:
 
         self.drones = []
 
-        self.lightfall_choreography = LightfallChoreography(self.game_interface)
-        self.lightfall_choreography.generate_sequence()
+        self.choreo = choreo_obj(self.game_interface)
+        self.choreo.generate_sequence()
+
+        # Set up queue to know when to stop and reload.
+        self.queue = queue
 
     def start(self):
         """Runs once, sets up the hivemind and its agents."""
@@ -70,11 +68,9 @@ class Hivemind:
         # Creating packet which will be updated every tick.
         packet = GameTickPacket()
 
-        # Nicknames the renderer to shorten code.
-        draw = self.game_interface.renderer
-
         # MAIN LOOP:
-        while True:
+        while self.loop_check():
+            #print('test')
 
             prev_time = packet.game_info.seconds_elapsed
             # Updating the game tick packet.
@@ -83,47 +79,49 @@ class Hivemind:
             # Checking if packet is new, otherwise sleep.
             if prev_time == packet.game_info.seconds_elapsed:
                 time.sleep(0.001)
+                continue
 
-            else:
-                # Begins rendering at the start of the loop; makes life easier.
-                # https://discordapp.com/channels/348658686962696195/446761380654219264/610879527089864737
-                draw.begin_rendering('Hivemind')
+            # Create a Drone object for every drone that holds its information.
+            if packet.num_cars > len(self.drones):
+                # Clears the list if there are more cars than drones.
+                self.drones.clear()
+                for index in range(packet.num_cars):
+                    self.drones.append(Drone(index, packet.game_cars[index].team))
 
-                # PRE-PROCESSING:
+            # Processing drone data.
+            for drone in self.drones:
+                drone.update(packet.game_cars[drone.index])
 
-                # Create a Drone object for every drone that holds its information.
-                if packet.num_cars > len(self.drones):
-                    # Clears the list if there are more cars than drones.
-                    self.drones.clear()
-                    for index in range(packet.num_cars):
-                        self.drones.append(Drone(index, packet.game_cars[index].team))
+            # Steps through the choreography.
+            self.choreo.step(packet, self.drones)
 
-                # Processing drone data.
-                for drone in self.drones:
-                    drone.update(packet.game_cars[drone.index])
+            # Resets choreography once it has finished.
+            if self.choreo.finished:
+                # Re-instantiates the choreography.
+                self.choreo = self.choreo.__class__(self.game_interface)
+                self.choreo.generate_sequence()
 
-                self.lightfall_choreography.step(packet, self.drones)
-                if self.lightfall_choreography.finished:
-                    self.lightfall_choreography = LightfallChoreography(self.game_interface)
-                    self.lightfall_choreography.generate_sequence()
+            # Sends the drone inputs to the drones.
+            for drone in self.drones:
+                self.game_interface.update_player_input(
+                    convert_player_input(drone.ctrl), drone.index)
 
-                # Use this to send the drone inputs to the drones.
-                for drone in self.drones:
-                    self.game_interface.update_player_input(
-                        convert_player_input(drone.ctrl), drone.index)
-
-                # Some example rendering:
-
-                # Renders drone indices.
-                # for drone in self.drones:
-                #     draw.draw_string_3d(drone.pos, 1, 1, str(
-                #         drone.index), draw.white())
-
-                # Ending rendering.
-                draw.end_rendering()
+    def loop_check(self):
+        """
+        Checks whether the hivemind should keep looping or should die.
+        """
+        if self.queue.empty():
+            return True
+            
+        else:
+            message = self.queue.get()
+            return message != QCommand.STOP
 
 
 def convert_player_input(ctrl: SimpleControllerState) -> PlayerInput:
+    """
+    Converts a SimpleControllerState to a PlayerInput object.
+    """
     player_input = PlayerInput()
     player_input.throttle = ctrl.throttle
     player_input.steer = ctrl.steer
