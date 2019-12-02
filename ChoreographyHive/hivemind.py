@@ -1,5 +1,5 @@
 '''The Hivemind'''
-
+from quicktracer import trace
 from rlbot.utils.structures.bot_input_struct import PlayerInput
 from rlbot.agents.base_agent import SimpleControllerState
 from rlbot.utils.logging_utils import get_logger
@@ -74,12 +74,7 @@ class Hivemind:
 
             prev_time = packet.game_info.seconds_elapsed
             # Updating the game tick packet.
-            self.game_interface.update_live_data_packet(packet)
-
-            # Checking if packet is new, otherwise sleep.
-            if prev_time == packet.game_info.seconds_elapsed:
-                time.sleep(0.001)
-                continue
+            self.game_interface.fresh_live_data_packet(packet, 500, 0)
 
             # Create a Drone object for every drone that holds its information.
             if packet.num_cars > len(self.drones):

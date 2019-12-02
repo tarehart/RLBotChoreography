@@ -1,0 +1,3 @@
+rlbot
+svgpathtools
+quicktracer

@@ -1,6 +1,6 @@
 import math
 from dataclasses import dataclass
-from typing import Optional, List, Dict
+from typing import List, Dict
 
 from rlbot.agents.base_agent import SimpleControllerState
 from rlbot.utils.game_state_util import GameState, CarState, Vector3, Physics, Rotator
@@ -13,6 +13,12 @@ from util.vec import Vec3
 class StateAndControls:
     state: GameState
     controls: SimpleControllerState
+
+
+@dataclass()
+class ThicknessKeyframe:
+    progression: float
+    thickness: float
 
 
 class MotionTrack:
@@ -33,6 +39,8 @@ class MotionTrack:
 class Instruction:
     drone_action = None
     motion_track: MotionTrack = None
+    begins_path = False
+    ends_path = False
 
 
 @dataclass
@@ -47,6 +55,7 @@ class BoostOn(Instruction):
         drone.ctrl.boost = True
 
     drone_action = boost_on
+    begins_path = True
 
 
 class BoostOff(Instruction):
@@ -55,6 +64,7 @@ class BoostOff(Instruction):
         drone.ctrl.boost = False
 
     drone_action = boost_off
+    ends_path = True
 
 
 class Move(Instruction):
@@ -70,8 +80,13 @@ class BotCnc:
         self.speed = speed
         self.previous_position = origin
         self.list: List[Instruction] = []
+        self.thickness_instructions: List[List[ThicknessKeyframe]] = []
 
-    def activate_nozzle(self):
+    def activate_nozzle(self, thickness_spec: List[ThicknessKeyframe]):
+        transformed_keyframes = [ThicknessKeyframe(tk.progression, tk.thickness * self.scale)
+                                 for tk in thickness_spec]
+        transformed_keyframes.sort(key=lambda tk: tk.progression)
+        self.thickness_instructions.append(transformed_keyframes)
         self.list.append(BoostOn())
 
     def deactivate_nozzle(self):
@@ -84,6 +99,26 @@ class BotCnc:
         self.previous_position = end
 
 
+def determine_radius_from_powerstroke(step_index, progress_within_step, data: List[ThicknessKeyframe]):
+    """
+    Powerstroke is a tool in the Inkscape vector editing program. It encodes thickness data
+    """
+    progress = step_index + progress_within_step
+    if progress < data[0].progression:
+        return data[0].thickness
+
+    for i in range(0, len(data) - 1):
+        a = data[i]
+        b = data[i + 1]
+        if a.progression < progress < b.progression:
+            segment_width = b.progression - a.progression
+            segment_height = b.thickness - a.thickness
+            ratio = (progress - a.progression) / segment_width
+            return ratio * segment_height + a.thickness
+
+    return data[-1].thickness
+
+
 @dataclass
 class CncExtruder:
     def __init__(self, drones: List[Drone], bot_cnc: BotCnc):
@@ -91,22 +126,43 @@ class CncExtruder:
         self.step_index: int = 0
         self.step_start_time: float = None
         self.bot_cnc = bot_cnc
+        self.path_index = 0
+        self.distance_on_current_path_from_prior_segments = 0
 
     def is_finished(self):
         return self.step_index >= len(self.bot_cnc.list)
 
-    def arrange_drones(self, extruder_position: Vec3, velocity: Vec3, game_time: float) -> Dict[int, CarState]:
+    def arrange_drones(self, extruder_position: Vec3, velocity: Vec3, game_time: float, radius: float) -> Dict[
+        int, CarState]:
         car_states: Dict[int, CarState] = {}
-        for i, drone in enumerate(self.drones):
-            x_offset = i * 100
+        if len(self.drones) == 0:
+            return car_states
+        if len(self.drones) == 1:
+            drone = self.drones[0]
             car_state = CarState(physics=Physics())
             car_state.physics.velocity = velocity.to_setter()
             car_state.physics.location = Vector3(
-                extruder_position.x + x_offset,
+                extruder_position.x,
                 extruder_position.y,
                 extruder_position.z)
             car_state.physics.rotation = Rotator(math.pi / 2, 0, 0)
             car_states[drone.index] = car_state
+        else:
+            radian_separation = math.pi * 2 / len(self.drones)
+            rotation_speed = 0.01 * self.bot_cnc.speed
+            radius_bonus = 1.4  # The way the bots move in practice makes the radius look too small, so compensate.
+            for i, drone in enumerate(self.drones):
+                rotation_amount = i * radian_separation + game_time * rotation_speed
+                y_offset = math.sin(rotation_amount) * radius * radius_bonus
+                x_offset = math.cos(rotation_amount) * radius * radius_bonus
+                car_state = CarState(physics=Physics())
+                car_state.physics.velocity = velocity.to_setter()
+                car_state.physics.location = Vector3(
+                    extruder_position.x + x_offset,
+                    extruder_position.y + y_offset,
+                    extruder_position.z)
+                car_state.physics.rotation = Rotator(math.pi / 2, rotation_amount - math.pi / 2, 0)
+                car_states[drone.index] = car_state
         return car_states
 
     def manipulate_drones(self, game_time: float) -> InstructionResult:
@@ -118,6 +174,12 @@ class CncExtruder:
             for drone in self.drones:
                 step.drone_action(drone)
 
+        if step.begins_path:
+            self.distance_on_current_path_from_prior_segments = 0
+
+        if step.ends_path:
+            self.path_index += 1
+
         if step.motion_track:
             if self.step_start_time:
                 elapsed = game_time - self.step_start_time
@@ -128,7 +190,9 @@ class CncExtruder:
                     vel = step.motion_track.velocity
                 else:
                     # Time has progressed to the point where we should already be done with this line segment.
-                    if self.step_index + 1 < len(self.bot_cnc.list) and self.bot_cnc.list[self.step_index + 1].motion_track:
+                    self.distance_on_current_path_from_prior_segments += step.motion_track.to_end.length()
+                    if self.step_index + 1 < len(self.bot_cnc.list) and self.bot_cnc.list[
+                        self.step_index + 1].motion_track:
                         # The next step is also a line segment, so continue motion onto it
                         self.step_start_time = self.step_start_time + step.motion_track.total_time
                         self.step_index += 1
@@ -148,9 +212,16 @@ class CncExtruder:
                 loc = step.motion_track.start
                 vel = step.motion_track.velocity
                 progression = 0
+                elapsed = 0
                 self.step_start_time = game_time
 
-            car_states = self.arrange_drones(loc, vel, game_time)
+            total_distance_on_current_path = self.distance_on_current_path_from_prior_segments + step.motion_track.velocity.length() * elapsed
+            thickness_data = self.bot_cnc.thickness_instructions[self.path_index]
+            if len(thickness_data) > 0:
+                radius = determine_radius_from_powerstroke(self.step_index, progression, thickness_data)
+            else:
+                radius = 0
+            car_states = self.arrange_drones(loc, vel, game_time, radius)
 
             if progression < 1:
                 step_finished = False

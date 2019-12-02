@@ -71,6 +71,10 @@ class Vec3:
         """Returns the length of the vector. Also called magnitude and norm."""
         return math.sqrt(self.x**2 + self.y**2 + self.z**2)
 
+    def length_squared(self):
+        """Returns the length of the vector, squared. Useful in other computations and efficient."""
+        return self.x**2 + self.y**2 + self.z**2
+
     def dist(self, other: 'Vec3') -> float:
         """Returns the distance between this vector and another vector using pythagoras."""
         return (self - other).length()
@@ -99,6 +103,15 @@ class Vec3:
         """Returns the angle to the ideal vector. Angle will be between 0 and pi."""
         cos_ang = self.dot(ideal) / (self.length() * ideal.length())
         return math.acos(cos_ang)
+
+    def project(self, onto: 'Vec3') -> 'Vec3':
+        scale = self.dot(onto) / onto.length_squared()
+        return onto.rescale(scale)
+
+    def project_to_plane(self, plane_normal: 'Vec3'):
+        d = self.dot(plane_normal)
+        antidote = plane_normal * -d
+        return self + antidote
 
     def to_setter(self) -> Vector3():
         return Vector3(self.x, self.y, self.z)

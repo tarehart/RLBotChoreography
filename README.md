@@ -11,7 +11,8 @@ Rocket League. It's useful for making cool synchronized performances.
    - Select "Add Python to PATH"
    - Make sure pip is included in the installation
 1. Download or clone this repository
-1. In a command prompt, run `pip install rlbot`
+1. In a command prompt, navigate to this directory.
+1. Run `pip install -r requirements.txt`
 
 ## Usage
 
