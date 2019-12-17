@@ -17,7 +17,9 @@ BASE_CAR_Z = 17
 @dataclass
 class Breadcrumb:
     position: Vec3
+    velocity: Vec3
     time_index: int
+    has_wheel_contact: bool
 
 
 def get_time_index(packet):
@@ -76,14 +78,25 @@ class FollowTheLeaderChoreography(Choreography):
                 if len(self.leader_history) > 0:
                     last_breadcrumb = self.leader_history[-1]
                 if last_breadcrumb is None or time_index != last_breadcrumb.time_index:
-                    self.leader_history.append(Breadcrumb(Vec3(lead_car.physics.location), time_index))
+                    self.leader_history.append(Breadcrumb(
+                        Vec3(lead_car.physics.location),
+                        Vec3(lead_car.physics.velocity),
+                        time_index, 
+                        lead_car.has_wheel_contact))
                     if len(self.leader_history) > len(drones):
                         self.leader_history.pop(0)
                 continue
 
+            breadcrumb = self.leader_history[-index]
+
             air_trail_position = None
-            if not lead_car.has_wheel_contact:
-                air_trail_position = Vec3(0, 0, 0)  # TODO: compute
+            if not breadcrumb.has_wheel_contact:
+                normvel = breadcrumb.velocity.normalized()
+                right = normvel.cross(Vec3(0, 0, 1))
+                up = normvel.cross(right)
+                # TODO: use a periodic function to stagger the followers based on index
+                # TODO: transform the stagger based on the current orientation of the bot
+                air_trail_position = breadcrumb.position + right + up
 
             if air_trail_position is not None and air_trail_position.z >= BASE_CAR_Z:
                 car_states[drone.index] = CarState(
@@ -94,7 +107,7 @@ class FollowTheLeaderChoreography(Choreography):
             else:
                 target = Vec3(0, 0, 0)
                 if len(self.leader_history) > index:
-                    target = self.leader_history[-index].position
+                    target = breadcrumb.position
                 slow_to_pos(drone, [target.x, target.y, target.z])
 
         self.game_interface.set_game_state(GameState(cars=car_states))
