@@ -87,6 +87,9 @@ class FollowTheLeaderChoreography(Choreography):
                         self.leader_history.pop(0)
                 continue
 
+            if len(self.leader_history) <= index:
+                continue
+
             breadcrumb = self.leader_history[-index]
 
             air_trail_position = None
@@ -104,10 +107,9 @@ class FollowTheLeaderChoreography(Choreography):
                             velocity=Vector3(0, 0, 0),
                             angular_velocity=Vector3(0, 0, 0),
                             rotation=Rotator(math.pi * 1, 0, 0)))
+                drone.ctrl.boost = True
             else:
-                target = Vec3(0, 0, 0)
-                if len(self.leader_history) > index:
-                    target = breadcrumb.position
+                target = breadcrumb.position
                 slow_to_pos(drone, [target.x, target.y, target.z])
 
         self.game_interface.set_game_state(GameState(cars=car_states))
