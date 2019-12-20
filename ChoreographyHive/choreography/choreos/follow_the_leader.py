@@ -7,7 +7,7 @@ from rlbot.utils.game_state_util import GameState, CarState, Physics, Vector3, R
 from rlbot.utils.structures.game_interface import GameInterface
 
 from choreography.choreography import Choreography
-from choreography.drone import slow_to_pos, fast_to_pos
+from choreography.drone import slow_to_pos, fast_to_pos, Drone
 from choreography.group_step import BlindBehaviorStep, DroneListStep, StepResult, PerDroneStep
 from util.vec import Vec3
 
@@ -25,6 +25,10 @@ class Breadcrumb:
 def get_time_index(packet):
     seconds_elapsed = packet.game_info.seconds_elapsed
     return int(seconds_elapsed * 4)  # Every quarter second
+
+
+def stagger(n):
+    return (n % 2) * 2 - 1
 
 
 class FollowTheLeaderChoreography(Choreography):
@@ -62,17 +66,19 @@ class FollowTheLeaderChoreography(Choreography):
         self.game_interface.set_game_state(GameState(cars=car_states))
         return StepResult(finished=True)
 
-    def follow_the_leader(self, packet, drones, start_time) -> StepResult:
+    def follow_the_leader(self, packet, drones: List[Drone], start_time) -> StepResult:
         """
         Makes all the drones follow a lead car in an interesting pattern.
         """
         lead_index = 0
         lead_car = packet.game_cars[lead_index]
+        lead_drone = drones[lead_index]
         car_states = {}
 
         for index, drone in enumerate(drones):
             if index == lead_index:
                 drone.ctrl.throttle = 1.0
+                drone.ctrl.roll = 1.0
                 time_index = get_time_index(packet)
                 last_breadcrumb = None
                 if len(self.leader_history) > 0:
@@ -81,7 +87,7 @@ class FollowTheLeaderChoreography(Choreography):
                     self.leader_history.append(Breadcrumb(
                         Vec3(lead_car.physics.location),
                         Vec3(lead_car.physics.velocity),
-                        time_index, 
+                        time_index,
                         lead_car.has_wheel_contact))
                     if len(self.leader_history) > len(drones):
                         self.leader_history.pop(0)
@@ -93,20 +99,18 @@ class FollowTheLeaderChoreography(Choreography):
             breadcrumb = self.leader_history[-index]
 
             air_trail_position = None
-            if not breadcrumb.has_wheel_contact:
-                normvel = breadcrumb.velocity.normalized()
-                right = normvel.cross(Vec3(0, 0, 1))
-                up = normvel.cross(right)
-                # TODO: use a periodic function to stagger the followers based on index
-                # TODO: transform the stagger based on the current orientation of the bot
-                air_trail_position = breadcrumb.position + right + up
+            if not breadcrumb.has_wheel_contact and breadcrumb.position.z > BASE_CAR_Z * 4:
+                air_trail_position = breadcrumb.position + stagger(index) * 300 * lead_drone.orientation.right
 
             if air_trail_position is not None and air_trail_position.z >= BASE_CAR_Z:
+                to_target = air_trail_position - Vec3(drone.pos[0], drone.pos[1], drone.pos[2])
+                target_vel = to_target.rescale(breadcrumb.velocity.length())
+                rotation = lead_car.physics.rotation
                 car_states[drone.index] = CarState(
-                    Physics(location=Vector3(air_trail_position.x, air_trail_position.y, air_trail_position.z),
-                            velocity=Vector3(0, 0, 0),
+                    Physics(location=None,
+                            velocity=Vector3(target_vel.x, target_vel.y, target_vel.z),
                             angular_velocity=Vector3(0, 0, 0),
-                            rotation=Rotator(math.pi * 1, 0, 0)))
+                            rotation=Rotator(rotation.pitch, rotation.yaw, rotation.roll)))
                 drone.ctrl.boost = True
             else:
                 target = breadcrumb.position

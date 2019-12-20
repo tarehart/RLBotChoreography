@@ -1,7 +1,8 @@
 import numpy as np
 from rlbot.agents.base_agent import SimpleControllerState
-
 from rlbot.utils.structures.game_data_struct import Rotator, Vector3, PlayerInfo
+
+from util.orientation import Orientation
 
 
 class Drone:
@@ -14,6 +15,7 @@ class Drone:
         self.boost: float = 0.0
         self.time: float = 0.0
         self.orient_m: np.ndarray = np.identity(3)
+        self.orientation = None
         self.ctrl: SimpleControllerState = SimpleControllerState()
 
     def update(self, game_car: PlayerInfo, time: float):
@@ -22,6 +24,7 @@ class Drone:
         self.vel = a3v(game_car.physics.velocity)
         self.boost = game_car.boost
         self.orient_m = orient_matrix(self.rot)
+        self.orientation = Orientation(game_car.physics.rotation)
         self.time = time
 
     def reset_ctrl(self):
