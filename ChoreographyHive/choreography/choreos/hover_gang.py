@@ -32,6 +32,8 @@ def stagger(n):
     return (n % 2) * 2 - 1
 
 
+STANDARD_RADIUS = 1000
+
 class HoverGangChoreography(Choreography):
 
     def __init__(self, game_interface: GameInterface):
@@ -39,7 +41,9 @@ class HoverGangChoreography(Choreography):
         self.game_interface = game_interface
         self.leader_history: List[Breadcrumb] = []
         self.aerials: List[Aerial] = []
+        self.angular_progress: List[float] = []
         self.game_info = GameInfo(0, 0)
+        self.previous_seconds_elapsed = 0
 
     def generate_sequence(self, drones):
         self.sequence.clear()
@@ -62,7 +66,7 @@ class HoverGangChoreography(Choreography):
         start_z = 800
         car_states = {}
         radian_spacing = 2 * math.pi / len(drones)
-        radius = 2500
+        radius = STANDARD_RADIUS
 
         for index, drone in enumerate(drones):
             progress = index * radian_spacing
@@ -78,20 +82,24 @@ class HoverGangChoreography(Choreography):
     def hover_in_line(self, packet, drones: List[Drone], start_time) -> StepResult:
 
         self.game_info.read_packet(packet)
+        radian_spacing = 2 * math.pi / len(drones)
 
         if len(self.aerials) == 0:
             for index, drone in enumerate(drones):
                 self.aerials.append(Aerial(self.game_info.cars[index], vec3(0, 0, 0), 0))
+                self.angular_progress.append(index * radian_spacing)
 
-        radian_spacing = 2 * math.pi / len(drones)
+
         elapsed = packet.game_info.seconds_elapsed - start_time
         # radius = 4000 - elapsed * 100
-
-        radius = 2500
+        time_delta = packet.game_info.seconds_elapsed - self.previous_seconds_elapsed
 
         for index, drone in enumerate(drones):
+            radius = STANDARD_RADIUS  # TODO: vary the radius
+            angular_delta = time_delta * .7  # TODO: vary this based on radius
+            self.angular_progress[index] += angular_delta
             aerial = self.aerials[index]
-            progress = index * radian_spacing + elapsed * .7
+            progress = self.angular_progress[index]
             target = Vec3(radius * math.sin(progress), radius * math.cos(progress), 1000)
             to_target = target - Vec3(drone.pos[0], drone.pos[1], drone.pos[2])
             aerial.target = vec3(target.x, target.y, target.z)
@@ -101,6 +109,8 @@ class HoverGangChoreography(Choreography):
             drone.ctrl.pitch = aerial.controls.pitch
             drone.ctrl.yaw = aerial.controls.yaw
             drone.ctrl.roll = aerial.controls.roll
+
+        self.previous_seconds_elapsed = packet.game_info.seconds_elapsed
 
         return StepResult(finished=elapsed > 60)
 
