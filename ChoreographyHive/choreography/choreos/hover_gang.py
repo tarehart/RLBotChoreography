@@ -1,6 +1,6 @@
 import math
 from dataclasses import dataclass
-from typing import List
+from typing import List, Tuple
 
 from RLUtilities.GameInfo import GameInfo
 from RLUtilities.Maneuvers import vec3, Aerial
@@ -32,7 +32,30 @@ def stagger(n):
     return (n % 2) * 2 - 1
 
 
-STANDARD_RADIUS = 1000
+class Piecewise:
+    def __init__(self, points: List[Tuple[float, float]]):
+        self.points = points
+
+    def lerp(self, x: float):
+        if self.points[0][0] > x:
+            return self.points[0][1]
+        if self.points[-1][0] < x:
+            return self.points[-1][1]
+
+        for i in range(0, len(self.points) - 1):
+            a = self.points[i]
+            b = self.points[i + 1]
+            if x > b[0]:
+                continue
+            span = b[0] - a[0]
+            to_x = x - a[0]
+            progress = to_x / span
+            vertical_span = b[1] - a[1]
+            return a[1] + vertical_span * progress
+
+
+STANDARD_RADIUS = 4000
+RADIUS_SPEED = Piecewise([(200, 2.0), (500, 1.2), (1400, 0.7), (2500, 0.5), (4000, 0.5)])
 
 class HoverGangChoreography(Choreography):
 
@@ -44,10 +67,13 @@ class HoverGangChoreography(Choreography):
         self.angular_progress: List[float] = []
         self.game_info = GameInfo(0, 0)
         self.previous_seconds_elapsed = 0
+        self.renderer = self.game_interface.renderer
 
     def generate_sequence(self, drones):
         self.sequence.clear()
         self.leader_history.clear()
+        self.aerials = []
+        self.angular_progress = []
 
         pause_time = 0.2
 
@@ -66,15 +92,15 @@ class HoverGangChoreography(Choreography):
         start_z = 800
         car_states = {}
         radian_spacing = 2 * math.pi / len(drones)
-        radius = STANDARD_RADIUS
+        radius = 4000
 
         for index, drone in enumerate(drones):
             progress = index * radian_spacing
             target = Vec3(radius * math.sin(progress), radius * math.cos(progress), 1000)
 
             car_states[drone.index] = CarState(
-                Physics(location=Vector3(target.x, target.y, target.z),
-                        velocity=Vector3(0, 0, 1000),
+                Physics(location=Vector3(target.x, target.y, target.z - 500),
+                        velocity=Vector3(0, 0, 800),
                         rotation=Rotator(math.pi / 2, 0, 0)))
         self.game_interface.set_game_state(GameState(cars=car_states))
         return StepResult(finished=True)
@@ -82,6 +108,7 @@ class HoverGangChoreography(Choreography):
     def hover_in_line(self, packet, drones: List[Drone], start_time) -> StepResult:
 
         self.game_info.read_packet(packet)
+        self.renderer.begin_rendering()
         radian_spacing = 2 * math.pi / len(drones)
 
         if len(self.aerials) == 0:
@@ -92,27 +119,43 @@ class HoverGangChoreography(Choreography):
 
         elapsed = packet.game_info.seconds_elapsed - start_time
         # radius = 4000 - elapsed * 100
-        time_delta = packet.game_info.seconds_elapsed - self.previous_seconds_elapsed
+        if self.previous_seconds_elapsed == 0:
+            time_delta = 0
+        else:
+            time_delta = packet.game_info.seconds_elapsed - self.previous_seconds_elapsed
+
+        torus_rate = 0.1
+        radius = 1000 * (1 + math.cos(elapsed * torus_rate)) + 300
+        height = 500 * (1 + math.sin(elapsed * torus_rate)) + 400
+
+        self.renderer.draw_string_2d(10, 10, 2, 2, f"r {radius}", self.renderer.white())
+        self.renderer.draw_string_2d(10, 30, 2, 2, f"z {drones[0].pos[2]}", self.renderer.white())
 
         for index, drone in enumerate(drones):
-            radius = STANDARD_RADIUS  # TODO: vary the radius
-            angular_delta = time_delta * .7  # TODO: vary this based on radius
+            # This function was fit from the following data points, where I experimentally found deltas which
+            # worked well with sampled radius values.
+            # {2500, 0.7}, {1000, 0.9}, {500, 1.2}, {200, 2.0}
+            # Originally was 2476 / (radius + 1038)
+            # angular_delta = time_delta * (800 / radius + 0.2)
+            angular_delta = time_delta * RADIUS_SPEED.lerp(radius)
             self.angular_progress[index] += angular_delta
             aerial = self.aerials[index]
             progress = self.angular_progress[index]
-            target = Vec3(radius * math.sin(progress), radius * math.cos(progress), 1000)
+            target = Vec3(radius * math.sin(progress), radius * math.cos(progress), height)
             to_target = target - Vec3(drone.pos[0], drone.pos[1], drone.pos[2])
+            self.renderer.draw_line_3d(drone.pos, target, self.renderer.yellow())
             aerial.target = vec3(target.x, target.y, target.z)
             aerial.t_arrival = drone.time + to_target.length() / 2000 + 0.3
-            aerial.step(0.016)
+            aerial.step(time_delta)
             drone.ctrl.boost = aerial.controls.boost
             drone.ctrl.pitch = aerial.controls.pitch
             drone.ctrl.yaw = aerial.controls.yaw
             drone.ctrl.roll = aerial.controls.roll
 
         self.previous_seconds_elapsed = packet.game_info.seconds_elapsed
+        self.renderer.end_rendering()
 
-        return StepResult(finished=elapsed > 60)
+        return StepResult(finished=elapsed > 160)
 
     def hide_ball(self, packet, drones, start_time) -> StepResult:
         """
