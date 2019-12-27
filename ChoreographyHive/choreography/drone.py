@@ -16,6 +16,7 @@ class Drone:
         self.time: float = 0.0
         self.orient_m: np.ndarray = np.identity(3)
         self.orientation = None
+        self.game_car = None
         self.ctrl: SimpleControllerState = SimpleControllerState()
 
     def update(self, game_car: PlayerInfo, time: float):
@@ -26,6 +27,7 @@ class Drone:
         self.orient_m = orient_matrix(self.rot)
         self.orientation = Orientation(game_car.physics.rotation)
         self.time = time
+        self.game_car = game_car
 
     def reset_ctrl(self):
         self.ctrl = SimpleControllerState()
