@@ -22,13 +22,14 @@ class DroneListStep(GroupStep):
     convenient than PerDroneStep. It should be possible to accomplish almost anything
     with this one.
     """
-    def __init__(self, fn: Callable[[GameTickPacket, List[Drone], float], StepResult]):
+    def __init__(self, fn: Callable[[GameTickPacket, List[Drone], float], StepResult], time_offset: float = 0):
         self.fn = fn
         self.start_time = None
+        self.time_offset = time_offset
 
     def perform(self, packet, drones):
         if not self.start_time:
-            self.start_time = packet.game_info.seconds_elapsed
+            self.start_time = packet.game_info.seconds_elapsed + self.time_offset
         return self.fn(packet, drones, self.start_time)
 
 

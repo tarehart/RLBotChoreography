@@ -5,12 +5,13 @@ from typing import List, Tuple
 from RLUtilities.GameInfo import GameInfo
 from RLUtilities.Maneuvers import vec3, Aerial
 from rlbot.agents.base_agent import SimpleControllerState
+from rlbot.messages.flat.GameTickPacket import GameTickPacket
 from rlbot.utils.game_state_util import GameState, CarState, Physics, Vector3, Rotator, BallState
 from rlbot.utils.structures.game_interface import GameInterface
 
 from choreography.choreography import Choreography
 from choreography.drone import Drone, slow_to_pos
-from choreography.group_step import BlindBehaviorStep, DroneListStep, StepResult
+from choreography.group_step import BlindBehaviorStep, DroneListStep, StepResult, GroupStep
 from util.vec import Vec3
 
 BASE_CAR_Z = 17
@@ -57,50 +58,41 @@ class Piecewise:
 STANDARD_RADIUS = 4000
 RADIUS_SPEED = Piecewise([(200, 2.0), (500, 1.2), (1400, 0.7), (2500, 0.5), (4000, 0.5)])
 
-class HoverGangChoreography(Choreography):
+GROUND_PROCESSION_RATE = 0.5
+TORUS_RATE = 0.1
 
-    def __init__(self, game_interface: GameInterface):
+def circular_procession(packet, drones, start_time) -> StepResult:
+    """
+    Makes all cars drive in a slowly shrinking circle.
+    https://gfycat.com/yearlygreathermitcrab
+    """
+    radian_spacing = 2 * math.pi / len(drones)
+    elapsed = packet.game_info.seconds_elapsed - start_time
+    radius = 3100 - elapsed * 10
+    for i, drone in enumerate(drones):
+        progress = i * radian_spacing + elapsed * GROUND_PROCESSION_RATE
+        target = [radius * math.sin(progress), radius * math.cos(progress), 0]
+        slow_to_pos(drone, target)
+    return StepResult(finished=elapsed * GROUND_PROCESSION_RATE > 10 * math.pi)
+
+class TorusSubChoreography(Choreography):
+    def __init__(self, game_interface: GameInterface, game_info: GameInfo, time_offset: float):
         super().__init__()
         self.game_interface = game_interface
-        self.leader_history: List[Breadcrumb] = []
+        self.renderer = self.game_interface.renderer
+        self.game_info = game_info
+        self.time_offset = time_offset
         self.aerials: List[Aerial] = []
         self.angular_progress: List[float] = []
-        self.game_info = GameInfo(0, 0)
         self.previous_seconds_elapsed = 0
-        self.renderer = self.game_interface.renderer
 
-    def generate_sequence(self, drones):
-        self.sequence.clear()
-        self.leader_history.clear()
+    def generate_sequence(self, drones: List[Drone]):
         self.aerials = []
         self.angular_progress = []
 
-        pause_time = 0.2
-
-        self.sequence.append(DroneListStep(self.hide_ball))
-        self.sequence.append(DroneListStep(self.line_up_on_ground))
-        self.sequence.append(BlindBehaviorStep(SimpleControllerState(), pause_time))
-        self.sequence.append(DroneListStep(self.circular_procession))
+        self.sequence.append(DroneListStep(self.line_up_on_ground, self.time_offset))
+        self.sequence.append(DroneListStep(circular_procession, self.time_offset))
         self.sequence.append(DroneListStep(self.torus_flight_pattern))
-
-    def line_up(self, packet, drones, start_time) -> StepResult:
-        """
-        Puts all the cars in a tidy line, very close together.
-        """
-        car_states = {}
-        radian_spacing = 2 * math.pi / len(drones)
-        radius = 4000
-
-        for index, drone in enumerate(drones):
-            progress = index * radian_spacing
-            target = Vec3(radius * math.sin(progress), radius * math.cos(progress), 1000)
-
-            car_states[drone.index] = CarState(
-                Physics(location=Vector3(target.x, target.y, target.z - 500),
-                        velocity=Vector3(0, 0, 800),
-                        rotation=Rotator(math.pi / 2, 0, 0)))
-        self.game_interface.set_game_state(GameState(cars=car_states))
-        return StepResult(finished=True)
 
     def line_up_on_ground(self, packet, drones, start_time) -> StepResult:
         """
@@ -110,31 +102,18 @@ class HoverGangChoreography(Choreography):
         radian_spacing = 2 * math.pi / len(drones)
         radius = 4000
 
+        elapsed = packet.game_info.seconds_elapsed - start_time
+
         for index, drone in enumerate(drones):
-            progress = index * radian_spacing
+            progress = index * radian_spacing + elapsed * GROUND_PROCESSION_RATE
             target = Vec3(radius * math.sin(progress), radius * math.cos(progress), 1000)
 
             car_states[drone.index] = CarState(
-                Physics(location=Vector3(target.x, target.y, 800),
+                Physics(location=Vector3(target.x, target.y, 50),
                         velocity=Vector3(0, 0, 0),
-                        rotation=Rotator(0, 0, 0)))
+                        rotation=Rotator(0, progress, 0)))
         self.game_interface.set_game_state(GameState(cars=car_states))
         return StepResult(finished=True)
-
-    def circular_procession(self, packet, drones, start_time) -> StepResult:
-        """
-        Makes all cars drive in a slowly shrinking circle.
-        https://gfycat.com/yearlygreathermitcrab
-        """
-        radian_spacing = 2 * math.pi / len(drones)
-        elapsed = packet.game_info.seconds_elapsed - start_time
-        radius = 4000 - elapsed * 100
-        progress_scalar = 0.5
-        for i, drone in enumerate(drones):
-            progress = i * radian_spacing + elapsed * progress_scalar
-            target = [radius * math.sin(progress), radius * math.cos(progress), 0]
-            slow_to_pos(drone, target)
-        return StepResult(finished=elapsed * progress_scalar > 2 * math.pi)
 
     def torus_flight_pattern(self, packet, drones: List[Drone], start_time) -> StepResult:
 
@@ -144,9 +123,8 @@ class HoverGangChoreography(Choreography):
 
         if len(self.aerials) == 0:
             for index, drone in enumerate(drones):
-                self.aerials.append(Aerial(self.game_info.cars[index], vec3(0, 0, 0), 0))
+                self.aerials.append(Aerial(self.game_info.cars[drone.index], vec3(0, 0, 0), 0))
                 self.angular_progress.append(index * radian_spacing)
-
 
         elapsed = packet.game_info.seconds_elapsed - start_time
         # radius = 4000 - elapsed * 100
@@ -155,9 +133,8 @@ class HoverGangChoreography(Choreography):
         else:
             time_delta = packet.game_info.seconds_elapsed - self.previous_seconds_elapsed
 
-        torus_rate = 0.1
-        radius = 1000 * (1 + math.cos(elapsed * torus_rate)) + 300
-        height = 500 * (1 + math.sin(elapsed * torus_rate)) + 400
+        radius = 1000 * (1 + math.cos(elapsed * TORUS_RATE)) + 300
+        height = 500 * (1 + math.sin(elapsed * TORUS_RATE)) + 400
 
         self.renderer.draw_string_2d(10, 10, 2, 2, f"r {radius}", self.renderer.white())
         self.renderer.draw_string_2d(10, 30, 2, 2, f"z {drones[0].pos[2]}", self.renderer.white())
@@ -188,6 +165,75 @@ class HoverGangChoreography(Choreography):
         self.renderer.end_rendering()
 
         return StepResult(finished=elapsed > 160)
+
+class TorusStep(GroupStep):
+
+    def __init__(self, game_interface: GameInterface, game_info: GameInfo):
+        self.sub_choreographies: List[Choreography] = []
+        self.game_interface = game_interface
+        self.game_info = game_info
+        self.drones_per_ring = 8
+
+    def slice_drones(self, drones: List, index):
+        return drones[index * 8: (index + 1) * 8]
+
+    def perform(self, packet: GameTickPacket, drones: List[Drone]) -> StepResult:
+
+        if len(self.sub_choreographies) == 0:
+            torus_period = 2 * math.pi / TORUS_RATE
+            num_rings = len(drones) // self.drones_per_ring
+            self.sub_choreographies = [TorusSubChoreography(self.game_interface, self.game_info, -n * torus_period / num_rings)
+                                       for n in range(0, num_rings)]
+
+            for index, sub_choreo in enumerate(self.sub_choreographies):
+                sub_choreo.generate_sequence(self.slice_drones(drones, index))
+
+        all_finished = True
+        for index, sub_choreo in enumerate(self.sub_choreographies):
+            sub_choreo.step(packet, self.slice_drones(drones, index))
+            all_finished = all_finished and sub_choreo.finished
+
+        return StepResult(finished=all_finished)
+
+class HoverGangChoreography(Choreography):
+
+    def __init__(self, game_interface: GameInterface):
+        super().__init__()
+        self.game_interface = game_interface
+
+        self.game_info = GameInfo(0, 0)
+        self.renderer = self.game_interface.renderer
+
+    @staticmethod
+    def get_num_bots():
+        return 48
+
+    def generate_sequence(self, drones):
+        self.sequence.clear()
+        pause_time = 0.2
+
+        self.sequence.append(DroneListStep(self.hide_ball))
+        self.sequence.append(BlindBehaviorStep(SimpleControllerState(), pause_time))
+        self.sequence.append(TorusStep(self.game_interface, self.game_info))
+
+    def line_up(self, packet, drones, start_time) -> StepResult:
+        """
+        Puts all the cars in a tidy line, very close together.
+        """
+        car_states = {}
+        radian_spacing = 2 * math.pi / len(drones)
+        radius = 4000
+
+        for index, drone in enumerate(drones):
+            progress = index * radian_spacing
+            target = Vec3(radius * math.sin(progress), radius * math.cos(progress), 1000)
+
+            car_states[drone.index] = CarState(
+                Physics(location=Vector3(target.x, target.y, target.z - 500),
+                        velocity=Vector3(0, 0, 800),
+                        rotation=Rotator(math.pi / 2, 0, 0)))
+        self.game_interface.set_game_state(GameState(cars=car_states))
+        return StepResult(finished=True)
 
     def hide_ball(self, packet, drones, start_time) -> StepResult:
         """
