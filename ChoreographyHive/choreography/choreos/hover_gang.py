@@ -111,7 +111,7 @@ class TorusSubChoreography(Choreography):
             car_states[drone.index] = CarState(
                 Physics(location=Vector3(target.x, target.y, 50),
                         velocity=Vector3(0, 0, 0),
-                        rotation=Rotator(0, progress, 0)))
+                        rotation=Rotator(0, -progress, 0)))
         self.game_interface.set_game_state(GameState(cars=car_states))
         return StepResult(finished=True)
 
@@ -133,8 +133,8 @@ class TorusSubChoreography(Choreography):
         else:
             time_delta = packet.game_info.seconds_elapsed - self.previous_seconds_elapsed
 
-        radius = 1000 * (1 + math.cos(elapsed * TORUS_RATE)) + 300
-        height = 500 * (1 + math.sin(elapsed * TORUS_RATE)) + 400
+        radius = 900 * (1 + math.cos(elapsed * TORUS_RATE)) + 300
+        height = 450 * (1 + math.sin(elapsed * TORUS_RATE)) + 800
 
         self.renderer.draw_string_2d(10, 10, 2, 2, f"r {radius}", self.renderer.white())
         self.renderer.draw_string_2d(10, 30, 2, 2, f"z {drones[0].pos[2]}", self.renderer.white())
