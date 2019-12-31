@@ -175,7 +175,7 @@ class TorusStep(GroupStep):
         self.drones_per_ring = 8
 
     def slice_drones(self, drones: List, index):
-        return drones[index * 8: (index + 1) * 8]
+        return drones[index * self.drones_per_ring: (index + 1) * self.drones_per_ring]
 
     def perform(self, packet: GameTickPacket, drones: List[Drone]) -> StepResult:
 
@@ -195,7 +195,7 @@ class TorusStep(GroupStep):
 
         return StepResult(finished=all_finished)
 
-class HoverGangChoreography(Choreography):
+class TorusChoreography(Choreography):
 
     def __init__(self, game_interface: GameInterface):
         super().__init__()
@@ -213,6 +213,12 @@ class HoverGangChoreography(Choreography):
         pause_time = 0.2
 
         self.sequence.append(DroneListStep(self.hide_ball))
+        self.sequence.append(DroneListStep(self.line_up))
+        self.sequence.append(DroneListStep(self.line_up))
+        self.sequence.append(DroneListStep(self.line_up))
+        self.sequence.append(DroneListStep(self.line_up))
+        self.sequence.append(DroneListStep(self.line_up))
+        self.sequence.append(DroneListStep(self.line_up))
         self.sequence.append(BlindBehaviorStep(SimpleControllerState(), pause_time))
         self.sequence.append(TorusStep(self.game_interface, self.game_info))
 
