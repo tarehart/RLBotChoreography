@@ -13,6 +13,8 @@ import os
 import sys
 import inspect
 import time
+from dataclasses import dataclass
+from typing import List
 
 from docopt import docopt
 from importlib import reload, import_module
@@ -35,6 +37,13 @@ from choreography.choreography import Choreography
 # TODO:
 # - Do bot-folder from inside the GUI
 # - Prettify GUI
+
+@dataclass
+class BoostSettings:
+    boost_id: int = 0
+    boost_paint_id: int = 0
+
+
 class RLBotChoreography:
 
     def __init__(self):
@@ -63,15 +72,31 @@ class RLBotChoreography:
         looks_configs = {idx: bundle.get_looks_config() for idx, bundle in enumerate(bundles)}
         names = [bundle.name for bundle in bundles]
 
+        # 36   - flamethrower
+        # 37   - flamethrower blue
+        # 38   - flamethrower green
+        # 39   - flamethrower pink
+        # 40   - flamethrower purple
+        # 41   - flamethrower red
+
+        boost_palette: List[BoostSettings] = [
+            BoostSettings(36, 4),  # blue
+            BoostSettings(40, 0),  # purple
+            BoostSettings(36, 10),  # orange
+            ]
+
         player_config = match_config.player_configs[0]
         match_config.player_configs.clear()
         for i in range(max(len(bundles), self.min_bots)):
-            copied = copy.copy(player_config)
+            copied = copy.deepcopy(player_config)
             if i < len(bundles):
                 copied.name = names[i]
                 # If you want to override bot appearances to get a certain visual effect, e.g. with
                 # specific boost colors, this is a good place to do it.
                 copied.loadout_config = load_bot_appearance(looks_configs[i], 0)
+            boost_settings = boost_palette[i % len(boost_palette)]
+            copied.loadout_config.boost_id = boost_settings.boost_id
+            copied.loadout_config.paint_config.boost_paint_id = boost_settings.boost_paint_id
             match_config.player_configs.append(copied)
 
         manager = SetupManager()
