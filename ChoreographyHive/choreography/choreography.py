@@ -5,7 +5,7 @@ from rlbot.utils.structures.game_data_struct import GameTickPacket
 from choreography.drone import Drone
 
 
-class Choreography:
+class ChoreographyBase:
 
     def __init__(self):
         self.sequence = []
@@ -25,10 +25,12 @@ class Choreography:
     def generate_sequence(self, drones: List[Drone]):
         pass
 
-    @staticmethod
-    def get_num_bots():
-        raise NotImplementedError
-
     def pre_step(self, drones: List[Drone]):
         for drone in drones:
             drone.reset_ctrl()
+
+
+class Choreography(ChoreographyBase):
+    @staticmethod
+    def get_num_bots():
+        raise NotImplementedError
