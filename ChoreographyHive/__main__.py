@@ -24,7 +24,8 @@ from os.path import dirname, basename, isfile, join
 import glob
 
 from rlbot.matchconfig.conversions import parse_match_config
-from rlbot.parsing.agent_config_parser import load_bot_appearance
+from rlbot.matchconfig.loadout_config import LoadoutConfig
+from rlbot.parsing.agent_config_parser import load_bot_appearance, create_looks_configurations
 from rlbot.parsing.directory_scanner import scan_directory_for_bot_configs
 from rlbot.parsing.rlbot_config_parser import create_bot_config_layout
 from rlbot.setup_manager import SetupManager
@@ -39,9 +40,9 @@ from choreography.choreography import Choreography
 # - Prettify GUI
 
 @dataclass
-class BoostSettings:
-    boost_id: int = 0
-    boost_paint_id: int = 0
+class VisualSettings:
+    loadout: LoadoutConfig
+    team: int = 0
 
 
 class RLBotChoreography:
@@ -65,12 +66,19 @@ class RLBotChoreography:
 
         # Set up RLBot.cfg
         framework_config = create_bot_config_layout()
-        config_location = os.path.join(os.path.dirname(__file__), 'rlbot.cfg')
+        base_path = os.path.dirname(__file__)
+        config_location = os.path.join(base_path, 'rlbot.cfg')
         framework_config.parse_file(config_location, max_index=MAX_PLAYERS)
         match_config = parse_match_config(framework_config, config_location, {}, {})
 
         looks_configs = {idx: bundle.get_looks_config() for idx, bundle in enumerate(bundles)}
         names = [bundle.name for bundle in bundles]
+
+        primary_loadout_file = create_looks_configurations().parse_file(os.path.join(base_path, 'loadout_primary.cfg'))
+        secondary_loadout_file = create_looks_configurations().parse_file(os.path.join(base_path, 'loadout_secondary.cfg'))
+        blue_looks = load_bot_appearance(primary_loadout_file, 0)
+        orange_looks = load_bot_appearance(primary_loadout_file, 1)
+        purple_looks = load_bot_appearance(secondary_loadout_file, 0)
 
         # 36   - flamethrower
         # 37   - flamethrower blue
@@ -79,10 +87,10 @@ class RLBotChoreography:
         # 40   - flamethrower purple
         # 41   - flamethrower red
 
-        boost_palette: List[BoostSettings] = [
-            BoostSettings(36, 4),  # blue
-            BoostSettings(40, 0),  # purple
-            BoostSettings(36, 10),  # orange
+        loadout_palette: List[VisualSettings] = [
+            VisualSettings(blue_looks, 0),
+            VisualSettings(purple_looks, 0),
+            VisualSettings(orange_looks, 1)
             ]
 
         player_config = match_config.player_configs[0]
@@ -94,9 +102,9 @@ class RLBotChoreography:
                 # If you want to override bot appearances to get a certain visual effect, e.g. with
                 # specific boost colors, this is a good place to do it.
                 copied.loadout_config = load_bot_appearance(looks_configs[i], 0)
-            boost_settings = boost_palette[i % len(boost_palette)]
-            copied.loadout_config.boost_id = boost_settings.boost_id
-            copied.loadout_config.paint_config.boost_paint_id = boost_settings.boost_paint_id
+            special_loadout = loadout_palette[i % len(loadout_palette)]
+            copied.loadout_config = special_loadout.loadout
+            copied.team = special_loadout.team
             match_config.player_configs.append(copied)
 
         manager = SetupManager()
