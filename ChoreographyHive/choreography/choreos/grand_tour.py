@@ -11,6 +11,7 @@ from rlbot.utils.structures.game_interface import GameInterface
 from choreography.choreography import Choreography, ChoreographyBase
 from choreography.drone import Drone
 from choreography.group_step import BlindBehaviorStep, DroneListStep, StepResult, GroupStep
+from util.orientation import look_at_orientation
 from util.vec import Vec3
 
 BASE_CAR_Z = 17
@@ -122,14 +123,14 @@ class FastFly(GroupChoreography):
         car_states = {}
         num_drones = len(self.drones)
         spacing = 75
+        orientation = look_at_orientation(self.direction, Vec3(0, 1, 0))
         for index, drone in enumerate(self.drones):
-            x_value = self.location.x + index * spacing - num_drones * spacing / 2
-            y_value = self.location.y
+            loc = self.location + orientation.right.rescale(index * spacing - num_drones * spacing / 2)
             car_states[drone.index] = CarState(
-                Physics(location=Vector3(x_value, y_value, self.location.z),
+                Physics(location=Vector3(loc.x, loc.y, loc.z),
                         velocity=Vector3(self.direction.x, self.direction.y, self.direction.z),
                         angular_velocity=Vector3(0, 0, 0),
-                        rotation=Rotator(math.pi / 2, 0, 0)))  # TODO: convert Vec3 direction to rotator
+                        rotation=orientation.to_rotator()))
         self.game_interface.set_game_state(GameState(cars=car_states))
         return StepResult(finished=True)
 
@@ -162,8 +163,12 @@ class GrandTourChoreography(Choreography):
 
         self.sequence.append(GroupOrchestrator(group_list=[
             CruiseFormation(game_interface=self.game_interface, drones=drones[:12], start_time=0),
-            FastFly(game_interface=self.game_interface, drones=drones[12:16], start_time=2, location=Vec3(-1000, 0, 100), direction=Vec3(1000, 0, 500)),
-            FastFly(game_interface=self.game_interface, drones=drones[16:20], start_time=2.5, location=Vec3(500, 600, 100), direction=Vec3(-1000, 0, 500))
+            FastFly(game_interface=self.game_interface, drones=[drones[12], drones[15], drones[18], drones[21]],
+                    start_time=1.2, location=Vec3(-2500, 0, 200), direction=Vec3(1000, 300, 500)),
+            FastFly(game_interface=self.game_interface, drones=[drones[13], drones[16], drones[19], drones[22]],
+                    start_time=1.5, location=Vec3(2500, 900, 200), direction=Vec3(-1000, 300, 500)),
+            FastFly(game_interface=self.game_interface, drones=[drones[14], drones[17], drones[20], drones[23]],
+                    start_time=1.8, location=Vec3(-2500, 1800, 200), direction=Vec3(1000, 300, 500))
         ]))
 
     def line_up(self, packet, drones, start_time) -> StepResult:

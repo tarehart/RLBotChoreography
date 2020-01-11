@@ -1,5 +1,7 @@
 import math
 
+from rlbot.utils.game_state_util import Rotator
+
 from util.vec import Vec3
 
 
@@ -26,6 +28,23 @@ class Orientation:
         self.forward = Vec3(cp * cy, cp * sy, sp)
         self.right = Vec3(cy*sp*sr-cr*sy, sy*sp*sr+cr*cy, -cp*sr)
         self.up = Vec3(-cr*cy*sp-sr*sy, -cr*sy*sp+sr*cy, cp*cr)
+
+    def to_rotator(self) -> Rotator:
+        return Rotator(self.pitch, self.yaw, self.roll)
+
+
+def look_at_orientation(look_at: Vec3, up_direction: Vec3) -> Orientation:
+    forward = look_at.normalized()
+    up = up_direction.normalized()
+    left = Vec3(up.cross(forward).normalized())
+
+    pitch = math.atan2(forward.z, Vec3(forward.x, forward.y, 0).length())
+    yaw = math.atan2(forward.y, forward.x)
+    roll = math.atan2(-left.z, up.z)
+
+    # order is yaw-pitch-roll
+    orientation = Orientation(Rotator(pitch, yaw, roll))
+    return orientation
 
 
 # Sometimes things are easier, when everything is seen from your point of view.
