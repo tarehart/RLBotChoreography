@@ -9,69 +9,33 @@ from rlbot.utils.structures.game_interface import GameInterface
 
 from choreography.choreography import Choreography
 from choreography.drone import Drone
-from choreography.group_step import BlindBehaviorStep, DroneListStep, StepResult, GroupStep
+from choreography.group_step import BlindBehaviorStep, DroneListStep, StepResult, GroupStep, SubGroupOrchestrator, \
+    SubGroupChoreography
 
 BASE_CAR_Z = 17
 
 
-class RailGunSubChoreography(Choreography):
+class RailGunSubChoreography(SubGroupChoreography):
 
-    def __init__(self, time_offset: float):
-        super().__init__()
-        self.time_offset = time_offset
+    def __init__(self, drones: List[Drone], start_time: float):
+        super().__init__(drones, start_time)
         self.previous_seconds_elapsed = 0
 
     def generate_sequence(self, drones: List[Drone]):
-        self.sequence.append(DroneListStep(self.wait_one, self.time_offset))
         self.sequence.append(BlindBehaviorStep(SimpleControllerState(throttle=1, boost=True), 1.8))
         self.sequence.append(BlindBehaviorStep(SimpleControllerState(throttle=1, jump=True, boost=True), .15))
         self.sequence.append(BlindBehaviorStep(SimpleControllerState(throttle=1, boost=True), .01))
         self.sequence.append(BlindBehaviorStep(SimpleControllerState(throttle=1, jump=True, boost=True, pitch=-1), .3))
-
-    def wait_one(self, packet, drones, start_time):
-        elapsed = packet.game_info.seconds_elapsed - start_time
-        return StepResult(finished=elapsed >= 1)
 
 
 # IMPULSE_DELAYS = [0, 0.05, 0.1, 0.11, 0.14, 0.17, 0.20, 0.22, 0.24]
 IMPULSE_DELAYS = [math.sqrt((n + 1) * .008) + 0.008 * n for n in range(0, 48)]
 
 
-class ImpulseOrchestratorStep(GroupStep):
-
-    def __init__(self, game_interface: GameInterface, game_info: GameInfo):
-        self.sub_choreographies: List[Choreography] = []
-        self.game_interface = game_interface
-        self.game_info = game_info
-        self.drones_per_ring = 2
-
-    def slice_drones(self, drones: List, index):
-        return drones[index * self.drones_per_ring: (index + 1) * self.drones_per_ring]
-
-    def get_impulse_delay(self, n):
-        if n < len(IMPULSE_DELAYS):
-            return IMPULSE_DELAYS[n]
-        return 1
-
-    def perform(self, packet: GameTickPacket, drones: List[Drone]) -> StepResult:
-
-        if len(drones) == 0:
-            return StepResult(finished=True)
-
-        if len(self.sub_choreographies) == 0:
-            num_rings = len(drones) // self.drones_per_ring
-            self.sub_choreographies = [RailGunSubChoreography(self.get_impulse_delay(n))
-                                       for n in range(0, num_rings)]
-
-            for index, sub_choreo in enumerate(self.sub_choreographies):
-                sub_choreo.generate_sequence(self.slice_drones(drones, index))
-
-        all_finished = True
-        for index, sub_choreo in enumerate(self.sub_choreographies):
-            sub_choreo.step(packet, self.slice_drones(drones, index))
-            all_finished = all_finished and sub_choreo.finished
-
-        return StepResult(finished=all_finished)
+def get_impulse_delay(n):
+    if n < len(IMPULSE_DELAYS):
+        return IMPULSE_DELAYS[n]
+    return 1
 
 
 def stagger(n):
@@ -89,7 +53,7 @@ class RailGunChoreography(Choreography):
 
     @staticmethod
     def get_num_bots():
-        return 6
+        return 48
 
     def generate_sequence(self, drones):
         self.sequence.clear()
@@ -100,7 +64,9 @@ class RailGunChoreography(Choreography):
         self.sequence.append(DroneListStep(self.line_up))
         self.sequence.append(BlindBehaviorStep(SimpleControllerState(), pause_time))
         self.sequence.append(DroneListStep(self.line_up))
-        self.sequence.append(ImpulseOrchestratorStep(self.game_interface, self.game_info))
+        self.sequence.append(SubGroupOrchestrator(group_list=[
+            RailGunSubChoreography(drones[i:i+2], get_impulse_delay(i // 2)) for i in range(0, len(drones), 2)
+        ]))
 
     def line_up(self, packet, drones, start_time) -> StepResult:
         car_states = {}

@@ -11,7 +11,8 @@ from rlbot.utils.structures.game_interface import GameInterface
 
 from choreography.choreography import Choreography
 from choreography.drone import Drone, slow_to_pos
-from choreography.group_step import BlindBehaviorStep, DroneListStep, StepResult, GroupStep
+from choreography.group_step import BlindBehaviorStep, DroneListStep, StepResult, GroupStep, SubGroupChoreography, \
+    SubGroupOrchestrator
 from util.vec import Vec3
 
 BASE_CAR_Z = 17
@@ -75,9 +76,11 @@ def circular_procession(packet, drones, start_time) -> StepResult:
         slow_to_pos(drone, target)
     return StepResult(finished=elapsed * GROUND_PROCESSION_RATE > 10 * math.pi)
 
-class TorusSubChoreography(Choreography):
-    def __init__(self, game_interface: GameInterface, game_info: GameInfo, time_offset: float):
-        super().__init__()
+
+class TorusSubChoreography(SubGroupChoreography):
+    def __init__(self, game_interface: GameInterface, game_info: GameInfo, time_offset: float, drones: List[Drone],
+                 start_time: float):
+        super().__init__(drones, start_time)
         self.game_interface = game_interface
         self.renderer = self.game_interface.renderer
         self.game_info = game_info
@@ -118,7 +121,7 @@ class TorusSubChoreography(Choreography):
     def torus_flight_pattern(self, packet, drones: List[Drone], start_time) -> StepResult:
 
         self.game_info.read_packet(packet)
-        self.renderer.begin_rendering()
+        self.renderer.begin_rendering(drones[0].index)
         radian_spacing = 2 * math.pi / len(drones)
 
         if len(self.aerials) == 0:
@@ -166,34 +169,6 @@ class TorusSubChoreography(Choreography):
 
         return StepResult(finished=elapsed > 160)
 
-class TorusStep(GroupStep):
-
-    def __init__(self, game_interface: GameInterface, game_info: GameInfo):
-        self.sub_choreographies: List[Choreography] = []
-        self.game_interface = game_interface
-        self.game_info = game_info
-        self.drones_per_ring = 8
-
-    def slice_drones(self, drones: List, index):
-        return drones[index * self.drones_per_ring: (index + 1) * self.drones_per_ring]
-
-    def perform(self, packet: GameTickPacket, drones: List[Drone]) -> StepResult:
-
-        if len(self.sub_choreographies) == 0:
-            torus_period = 2 * math.pi / TORUS_RATE
-            num_rings = len(drones) // self.drones_per_ring
-            self.sub_choreographies = [TorusSubChoreography(self.game_interface, self.game_info, -n * torus_period / num_rings)
-                                       for n in range(0, num_rings)]
-
-            for index, sub_choreo in enumerate(self.sub_choreographies):
-                sub_choreo.generate_sequence(self.slice_drones(drones, index))
-
-        all_finished = True
-        for index, sub_choreo in enumerate(self.sub_choreographies):
-            sub_choreo.step(packet, self.slice_drones(drones, index))
-            all_finished = all_finished and sub_choreo.finished
-
-        return StepResult(finished=all_finished)
 
 class TorusChoreography(Choreography):
 
@@ -203,6 +178,7 @@ class TorusChoreography(Choreography):
 
         self.game_info = GameInfo(0, 0)
         self.renderer = self.game_interface.renderer
+        self.drones_per_ring = 8
 
     @staticmethod
     def get_num_bots():
@@ -210,6 +186,10 @@ class TorusChoreography(Choreography):
 
     def generate_sequence(self, drones):
         self.sequence.clear()
+
+        if len(drones) == 0:
+            return
+
         pause_time = 0.2
 
         self.sequence.append(DroneListStep(self.hide_ball))
@@ -220,7 +200,14 @@ class TorusChoreography(Choreography):
         self.sequence.append(DroneListStep(self.line_up))
         self.sequence.append(DroneListStep(self.line_up))
         self.sequence.append(BlindBehaviorStep(SimpleControllerState(), pause_time))
-        self.sequence.append(TorusStep(self.game_interface, self.game_info))
+
+        num_rings = len(drones) // self.drones_per_ring
+        torus_period = 2 * math.pi / TORUS_RATE
+        self.sequence.append(SubGroupOrchestrator(group_list=[
+            TorusSubChoreography(self.game_interface, self.game_info, -i * torus_period / num_rings,
+                                 drones[i * self.drones_per_ring:(i + 1) * self.drones_per_ring], 0)
+            for i in range(0, num_rings)
+        ]))
 
     def line_up(self, packet, drones, start_time) -> StepResult:
         """

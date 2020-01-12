@@ -1,78 +1,29 @@
 import math
-from dataclasses import dataclass
 from typing import List
 
-from RLUtilities.GameInfo import GameInfo
 from rlbot.agents.base_agent import SimpleControllerState
 from rlbot.utils.game_state_util import GameState, CarState, Physics, Vector3, Rotator, BallState
-from rlbot.utils.structures.game_data_struct import GameTickPacket
 from rlbot.utils.structures.game_interface import GameInterface
 
-from choreography.choreography import Choreography, ChoreographyBase
+from choreography.choreography import Choreography
 from choreography.drone import Drone
-from choreography.group_step import BlindBehaviorStep, DroneListStep, StepResult, GroupStep
+from choreography.group_step import BlindBehaviorStep, DroneListStep, StepResult, SubGroupChoreography, \
+    SubGroupOrchestrator
 from util.orientation import look_at_orientation
 from util.vec import Vec3
 
 BASE_CAR_Z = 17
 
 
-class GroupChoreography(ChoreographyBase):
-    """
-    This defines a sub-group of drones that may behave differently from the other drones present
-    on the field.
-    """
-    def __init__(self, drones: List[Drone], start_time: float):
-        super().__init__()
-        self.drones = drones
-        self.start_time = start_time
-
-
-class GroupOrchestrator(GroupStep):
-    def __init__(self, group_list: List[GroupChoreography]):
-        self.group_list = group_list
-        self.active_groups: List[GroupChoreography] = []
-        self.completed = False
-        self.group_list.sort(key=lambda x: x.start_time)
-        self.start_time = None
-
-    def update(self, current_time):
-        if not self.start_time:
-            self.start_time = current_time
-
-        if len(self.group_list) == 0 and len(self.active_groups) == 0:
-            self.completed = True
-            return
-        self.active_groups = [g for g in self.active_groups if not g.finished]
-        num_consumed = 0
-        for candidate in self.group_list:
-            if candidate.start_time <= current_time - self.start_time:
-                self.active_groups.append(candidate)
-                num_consumed += 1
-
-        self.group_list = self.group_list[num_consumed:]
-
-    def step(self, packet: GameTickPacket):
-        for choreo in self.active_groups:
-            # Pass the choreo its own drones. Don't make it aware of all the drones in the match.
-            choreo.step(packet, choreo.drones)
-
-    def perform(self, packet: GameTickPacket, drones: List[Drone]) -> StepResult:
-        self.update(packet.game_info.seconds_elapsed)
-        self.step(packet)
-        return StepResult(finished=self.completed)
-
-
 def stagger(n):
     return (n % 2) * 2 - 1
 
 
-class CruiseFormation(GroupChoreography):
+class CruiseFormation(SubGroupChoreography):
 
     def __init__(self, game_interface: GameInterface, drones: List[Drone], start_time: float):
         super().__init__(drones, start_time)
         self.game_interface = game_interface
-        self.generate_sequence(drones)
 
     def generate_sequence(self, drones: List[Drone]):
         self.sequence.append(DroneListStep(self.pose_drones))
@@ -106,9 +57,10 @@ class CruiseFormation(GroupChoreography):
         return StepResult(finished=True)
 
 
-class FastFly(GroupChoreography):
+class FastFly(SubGroupChoreography):
 
-    def __init__(self, game_interface: GameInterface, drones: List[Drone], start_time: float, location: Vec3, direction: Vec3):
+    def __init__(self, game_interface: GameInterface, drones: List[Drone], start_time: float, location: Vec3,
+                 direction: Vec3):
         super().__init__(drones, start_time)
         self.game_interface = game_interface
         self.location = location
@@ -141,9 +93,6 @@ class GrandTourChoreography(Choreography):
         super().__init__()
         self.game_interface = game_interface
 
-        self.game_info = GameInfo(0, 0)
-        self.renderer = self.game_interface.renderer
-
     @staticmethod
     def get_num_bots():
         return 48
@@ -161,7 +110,7 @@ class GrandTourChoreography(Choreography):
         if len(drones) < 48:
             return
 
-        self.sequence.append(GroupOrchestrator(group_list=[
+        self.sequence.append(SubGroupOrchestrator(group_list=[
             CruiseFormation(game_interface=self.game_interface, drones=drones[:12], start_time=0),
             FastFly(game_interface=self.game_interface, drones=[drones[12], drones[15], drones[18], drones[21]],
                     start_time=1.2, location=Vec3(-2500, 0, 200), direction=Vec3(1000, 300, 500)),
