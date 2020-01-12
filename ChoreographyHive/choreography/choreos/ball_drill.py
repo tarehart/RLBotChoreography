@@ -62,7 +62,7 @@ class BallDrillChoreography(Choreography):
         game_time = packet.game_info.seconds_elapsed
         elapsed_time = game_time - start_time
 
-        drill_position = Vec3(10000, 0, 100)
+        drill_position = Vec3(0, 0, 4000 - elapsed_time * 500)
 
         car_states = {}
         radian_separation = math.pi * 2 / len(drones)
@@ -84,8 +84,8 @@ class BallDrillChoreography(Choreography):
             drone.ctrl.boost = True
 
         self.game_interface.set_game_state(GameState(cars=car_states, ball=BallState(Physics(
-            location=Vector3(drill_position.x, drill_position.y, drill_position.z + 400 - elapsed_time * 50)))))
-        return StepResult(finished=elapsed_time > 20)
+            location=Vector3(drill_position.x, drill_position.y, drill_position.z + 100)))))
+        return StepResult(finished=elapsed_time > 5)
 
 
     def hide_ball(self, packet, drones, start_time) -> StepResult:
