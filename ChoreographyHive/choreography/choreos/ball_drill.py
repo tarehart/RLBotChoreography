@@ -1,22 +1,57 @@
 import math
+from typing import List
 
-from rlbot.agents.base_agent import SimpleControllerState
+from RLUtilities.GameInfo import GameInfo
 from rlbot.utils.game_state_util import GameState, CarState, Physics, Vector3, Rotator, BallState
+from rlbot.utils.structures.game_data_struct import GameTickPacket
 from rlbot.utils.structures.game_interface import GameInterface
 
 from choreography.choreography import Choreography
-from choreography.drone import slow_to_pos
-from choreography.group_step import BlindBehaviorStep, DroneListStep, StepResult, PerDroneStep
+from choreography.choreos.torus import TorusSubChoreography, TORUS_RATE, arrange_in_ground_circle
+from choreography.common.preparation import LetAllCarsSpawn
+from choreography.drone import Drone
+from choreography.group_step import DroneListStep, StepResult, SubGroupChoreography, \
+    SubGroupOrchestrator, GroupStep
 from util.vec import Vec3
 
 
-class BallDrillChoreography(Choreography):
+class DrillIntoTorusChoreography(Choreography):
+
+    def __init__(self, game_interface):
+        super().__init__()
+        self.drones_per_ring = 3
+        self.game_interface = game_interface
+        self.game_info = GameInfo(0, 0)
+
+    @staticmethod
+    def get_num_bots():
+        return 48
+
+    def pre_step(self, packet: GameTickPacket, drones: List[Drone]):
+        self.game_info.read_packet(packet)
+
+    def generate_sequence(self, drones: List[Drone]):
+
+        self.sequence.append(LetAllCarsSpawn(self.game_interface, self.get_num_bots()))
+
+        if len(drones) >= self.get_num_bots():
+            num_rings = 9
+            torus_period = 2 * math.pi / TORUS_RATE
+            torus_rings = [
+                TorusSubChoreography(self.game_interface, self.game_info, -i * torus_period / num_rings,
+                                     drones[i * self.drones_per_ring:(i + 1) * self.drones_per_ring], 0)
+                for i in range(0, num_rings)
+            ]
+            self.sequence.append(SubGroupOrchestrator(group_list=torus_rings + [BallDrillChoreography(self.game_interface, drones[36:49], 15)]))
+
+
+class BallDrillChoreography(SubGroupChoreography):
     """
     This was used to create https://www.youtube.com/watch?v=7D5QJipyTrw
     """
 
-    def __init__(self, game_interface: GameInterface):
-        super().__init__()
+    def __init__(self, game_interface: GameInterface, drones: List[Drone], start_time: float):
+        super().__init__(drones, start_time)
         self.game_interface = game_interface
 
     @staticmethod
@@ -26,30 +61,12 @@ class BallDrillChoreography(Choreography):
     def generate_sequence(self, drones):
         self.sequence.clear()
 
-        pause_time = 1.5
-
         self.sequence.append(DroneListStep(self.hide_ball))
-        self.sequence.append(DroneListStep(self.line_up))
-        self.sequence.append(BlindBehaviorStep(SimpleControllerState(), pause_time))
-        self.sequence.append(DroneListStep(self.line_up))
-        self.sequence.append(BlindBehaviorStep(SimpleControllerState(), pause_time))
+        self.sequence.append(DroneListStep(self.arrange_in_ground_circle))
         self.sequence.append(DroneListStep(self.drill))
 
-    def line_up(self, packet, drones, start_time) -> StepResult:
-        """
-        Puts all the cars in a tidy line, very close together.
-        """
-        start_x = -2000
-        y_increment = 100
-        start_y = -len(drones) * y_increment / 2
-        start_z = 40
-        car_states = {}
-        for drone in drones:
-            car_states[drone.index] = CarState(
-                Physics(location=Vector3(start_x, start_y + drone.index * y_increment, start_z),
-                        velocity=Vector3(0, 0, 0),
-                        rotation=Rotator(0, 0, 0)))
-        self.game_interface.set_game_state(GameState(cars=car_states))
+    def arrange_in_ground_circle(self, packet, drones, start_time) -> StepResult:
+        arrange_in_ground_circle(drones, self.game_interface, 800, 0)
         return StepResult(finished=True)
 
     def drill(self, packet, drones, start_time) -> StepResult:

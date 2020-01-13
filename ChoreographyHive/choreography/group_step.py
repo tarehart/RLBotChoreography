@@ -83,6 +83,10 @@ class SubGroupChoreography(ChoreographyBase):
         self.drones = drones
         self.start_time = start_time
 
+    def pre_step(self, packet: GameTickPacket, drones: List[Drone]):
+        for drone in self.drones:  # Only reset your OWN drones.
+            drone.reset_ctrl()
+
 
 class SubGroupOrchestrator(GroupStep):
     def __init__(self, group_list: List[SubGroupChoreography]):

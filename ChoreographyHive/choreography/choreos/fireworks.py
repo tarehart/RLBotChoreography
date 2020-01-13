@@ -5,22 +5,47 @@ from typing import List, Tuple
 from RLUtilities.GameInfo import GameInfo
 from RLUtilities.Maneuvers import vec3, Aerial
 from rlbot.agents.base_agent import SimpleControllerState
-from rlbot.messages.flat.GameTickPacket import GameTickPacket
 from rlbot.utils.game_state_util import GameState, CarState, Physics, Vector3, Rotator, BallState
+from rlbot.utils.structures.game_data_struct import GameTickPacket
 from rlbot.utils.structures.game_interface import GameInterface
 
 from choreography.choreography import Choreography
+from choreography.common.preparation import LetAllCarsSpawn
 from choreography.drone import Drone, slow_to_pos
-from choreography.group_step import BlindBehaviorStep, DroneListStep, StepResult, GroupStep
+from choreography.group_step import BlindBehaviorStep, DroneListStep, StepResult, GroupStep, SubGroupOrchestrator, \
+    SubGroupChoreography
 from util.vec import Vec3
 
 BASE_CAR_Z = 17
 
+class ExplodeBall(GroupStep):
 
-class FireworkSubChoreography(Choreography):
+    def __init__(self, game_interface: GameInterface, location: Vec3):
+        self.game_interface = game_interface
+        self.location = location
+        self.phase = 0
 
-    def __init__(self, game_interface: GameInterface, game_info: GameInfo, time_offset: float, start_position: Vec3):
-        super().__init__()
+    def perform(self, packet: GameTickPacket, drones: List[Drone]) -> StepResult:
+
+        if self.phase == 0:
+            self.game_interface.set_game_state(GameState(ball=BallState(physics=Physics(
+                location=Vector3(self.location.x, self.location.y, self.location.z),
+                velocity=Vector3(0, 0, 0),
+                angular_velocity=Vector3(0, 0, 0)))))
+            self.phase += 1
+            return StepResult(finished=False)
+        else:
+            self.game_interface.set_game_state(GameState(ball=BallState(physics=Physics(
+                location=Vector3(0, 5300, 100),
+                velocity=Vector3(0, 0, 0),
+                angular_velocity=Vector3(0, 0, 0)))))
+            return StepResult(finished=True)
+
+class FireworkSubChoreography(SubGroupChoreography):
+
+    def __init__(self, game_interface: GameInterface, game_info: GameInfo, time_offset: float, start_position: Vec3,
+                 drones: List[Drone], start_time: float, use_goal_explosion=False):
+        super().__init__(drones, start_time)
         self.game_interface = game_interface
         self.renderer = self.game_interface.renderer
         self.game_info = game_info
@@ -28,6 +53,7 @@ class FireworkSubChoreography(Choreography):
         self.aerials: List[Aerial] = []
         self.previous_seconds_elapsed = 0
         self.start_position = start_position
+        self.use_goal_explosion = use_goal_explosion
 
     def generate_sequence(self, drones: List[Drone]):
         self.aerials = []
@@ -38,11 +64,21 @@ class FireworkSubChoreography(Choreography):
         self.sequence.append(DroneListStep(self.cheater_takeoff))
         self.sequence.append(DroneListStep(self.cheater_takeoff))
         self.sequence.append(DroneListStep(self.cheater_takeoff))
-        self.sequence.append(DroneListStep(self.firework_flight))
-        self.sequence.append(BlindBehaviorStep(SimpleControllerState(), 0.8))
+
+        if len(drones) <= 6:
+            self.sequence.append(DroneListStep(self.firework_flight))
+            self.sequence.append(BlindBehaviorStep(SimpleControllerState(), 0.8))
+        else:
+            self.sequence.append(BlindBehaviorStep(SimpleControllerState(boost=True), 1))
+
+        if self.use_goal_explosion:
+            self.sequence.append(ExplodeBall(self.game_interface, self.start_position + Vec3(0, 0, 1800)))
         self.sequence.append(BlindBehaviorStep(SimpleControllerState(pitch=1, jump=True, boost=True), 0.05))
         self.sequence.append(BlindBehaviorStep(SimpleControllerState(pitch=-0.8, boost=True), 0.7))
-        self.sequence.append(BlindBehaviorStep(SimpleControllerState(boost=True), 0.6))
+        if self.use_goal_explosion:
+            self.sequence.append(BlindBehaviorStep(SimpleControllerState(boost=True), 3))
+        else:
+            self.sequence.append(BlindBehaviorStep(SimpleControllerState(boost=True), 0.6))
 
     def wait_one(self, packet, drones, start_time):
         elapsed = packet.game_info.seconds_elapsed - start_time
@@ -58,7 +94,7 @@ class FireworkSubChoreography(Choreography):
 
         car_states = {}
         radian_spacing = 2 * math.pi / len(drones)
-        radius = 100
+        radius = len(drones) * 100 / 6
 
         for index, drone in enumerate(drones):
             progress = index * radian_spacing
@@ -82,7 +118,7 @@ class FireworkSubChoreography(Choreography):
 
         car_states = {}
         radian_spacing = 2 * math.pi / len(drones)
-        radius = 100
+        radius = len(drones) * 100 / 6
 
         for index, drone in enumerate(drones):
             progress = index * radian_spacing
@@ -98,7 +134,6 @@ class FireworkSubChoreography(Choreography):
 
     def firework_flight(self, packet, drones: List[Drone], start_time) -> StepResult:
 
-        self.game_info.read_packet(packet)
         self.renderer.begin_rendering()
 
         if len(self.aerials) == 0:
@@ -136,37 +171,6 @@ class FireworkSubChoreography(Choreography):
         return StepResult(finished=elapsed > 0.5)
 
 
-class FireworkStep(GroupStep):
-
-    def __init__(self, game_interface: GameInterface, game_info: GameInfo):
-        self.sub_choreographies: List[Choreography] = []
-        self.game_interface = game_interface
-        self.game_info = game_info
-        self.drones_per_ring = 6
-
-    def slice_drones(self, drones: List, index):
-        return drones[index * self.drones_per_ring: (index + 1) * self.drones_per_ring]
-
-    def perform(self, packet: GameTickPacket, drones: List[Drone]) -> StepResult:
-
-        if len(drones) == 0:
-            return StepResult(finished=True)
-
-        if len(self.sub_choreographies) == 0:
-            num_rings = len(drones) // self.drones_per_ring
-            self.sub_choreographies = [FireworkSubChoreography(self.game_interface, self.game_info, n * .5, Vec3(n * 200 - 1000, n * 1000 - 4000, 50))
-                                       for n in range(0, num_rings)]
-
-            for index, sub_choreo in enumerate(self.sub_choreographies):
-                sub_choreo.generate_sequence(self.slice_drones(drones, index))
-
-        all_finished = True
-        for index, sub_choreo in enumerate(self.sub_choreographies):
-            sub_choreo.step(packet, self.slice_drones(drones, index))
-            all_finished = all_finished and sub_choreo.finished
-
-        return StepResult(finished=all_finished)
-
 class FireworksChoreography(Choreography):
 
     def __init__(self, game_interface: GameInterface):
@@ -176,6 +180,9 @@ class FireworksChoreography(Choreography):
         self.game_info = GameInfo(0, 0)
         self.renderer = self.game_interface.renderer
 
+    def pre_step(self, packet: GameTickPacket, drones: List[Drone]):
+        self.game_info.read_packet(packet)
+
     @staticmethod
     def get_num_bots():
         return 48
@@ -184,12 +191,24 @@ class FireworksChoreography(Choreography):
         self.sequence.clear()
         pause_time = 0.2
 
+        self.sequence.append(LetAllCarsSpawn(self.game_interface, len(drones)))
         self.sequence.append(DroneListStep(self.hide_ball))
         self.sequence.append(BlindBehaviorStep(SimpleControllerState(), pause_time))
         self.sequence.append(DroneListStep(self.line_up))
         self.sequence.append(BlindBehaviorStep(SimpleControllerState(), pause_time))
         self.sequence.append(DroneListStep(self.line_up))
-        self.sequence.append(FireworkStep(self.game_interface, self.game_info))
+
+        drones_per_missile = 6
+        num_missiles = len(drones) // drones_per_missile
+        self.sequence.append(SubGroupOrchestrator(group_list=[
+            FireworkSubChoreography(self.game_interface, self.game_info, n * .5, Vec3(n * 200 - 1000, n * 1000 - 4000, 50),
+                                    drones[n * drones_per_missile: (n + 1) * drones_per_missile], 0, False)
+            for n in range(0, num_missiles)
+        ]))
+
+        self.sequence.append(SubGroupOrchestrator(group_list=[
+            FireworkSubChoreography(self.game_interface, self.game_info, 0, Vec3(0, 0, 50), drones, 0, True)
+        ]))
 
     def line_up(self, packet, drones, start_time) -> StepResult:
         """

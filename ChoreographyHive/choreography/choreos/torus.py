@@ -10,6 +10,7 @@ from rlbot.utils.game_state_util import GameState, CarState, Physics, Vector3, R
 from rlbot.utils.structures.game_interface import GameInterface
 
 from choreography.choreography import Choreography
+from choreography.common.preparation import LetAllCarsSpawn
 from choreography.drone import Drone, slow_to_pos
 from choreography.group_step import BlindBehaviorStep, DroneListStep, StepResult, GroupStep, SubGroupChoreography, \
     SubGroupOrchestrator
@@ -77,6 +78,24 @@ def circular_procession(packet, drones, start_time) -> StepResult:
     return StepResult(finished=elapsed * GROUND_PROCESSION_RATE > 10 * math.pi)
 
 
+def arrange_in_ground_circle(drones: List[Drone], game_interface: GameInterface, radius: float, radian_offset: float):
+    if len(drones) == 0:
+        return
+
+    car_states = {}
+    radian_spacing = 2 * math.pi / len(drones)
+
+    for index, drone in enumerate(drones):
+        progress = index * radian_spacing + radian_offset
+        target = Vec3(radius * math.sin(progress), radius * math.cos(progress), 1000)
+
+        car_states[drone.index] = CarState(
+            Physics(location=Vector3(target.x, target.y, 50),
+                    velocity=Vector3(0, 0, 0),
+                    rotation=Rotator(0, -progress, 0)))
+    game_interface.set_game_state(GameState(cars=car_states))
+
+
 class TorusSubChoreography(SubGroupChoreography):
     def __init__(self, game_interface: GameInterface, game_info: GameInfo, time_offset: float, drones: List[Drone],
                  start_time: float):
@@ -93,35 +112,21 @@ class TorusSubChoreography(SubGroupChoreography):
         self.aerials = []
         self.angular_progress = []
 
-        self.sequence.append(DroneListStep(self.line_up_on_ground, self.time_offset))
+        if len(drones) == 0:
+            return
+
+        self.sequence.append(DroneListStep(self.arrange_in_ground_circle, self.time_offset))
         self.sequence.append(DroneListStep(circular_procession, self.time_offset))
         self.sequence.append(DroneListStep(self.torus_flight_pattern))
 
-    def line_up_on_ground(self, packet, drones, start_time) -> StepResult:
-        """
-        Puts all the cars in a tidy line, very close together.
-        """
-        car_states = {}
-        radian_spacing = 2 * math.pi / len(drones)
-        radius = 4000
-
+    def arrange_in_ground_circle(self, packet, drones, start_time) -> StepResult:
         elapsed = packet.game_info.seconds_elapsed - start_time
-
-        for index, drone in enumerate(drones):
-            progress = index * radian_spacing + elapsed * GROUND_PROCESSION_RATE
-            target = Vec3(radius * math.sin(progress), radius * math.cos(progress), 1000)
-
-            car_states[drone.index] = CarState(
-                Physics(location=Vector3(target.x, target.y, 50),
-                        velocity=Vector3(0, 0, 0),
-                        rotation=Rotator(0, -progress, 0)))
-        self.game_interface.set_game_state(GameState(cars=car_states))
+        arrange_in_ground_circle(drones, self.game_interface, 4000, elapsed * GROUND_PROCESSION_RATE)
         return StepResult(finished=True)
 
     def torus_flight_pattern(self, packet, drones: List[Drone], start_time) -> StepResult:
 
-        self.game_info.read_packet(packet)
-        self.renderer.begin_rendering(drones[0].index)
+        # self.renderer.begin_rendering(drones[0].index)
         radian_spacing = 2 * math.pi / len(drones)
 
         if len(self.aerials) == 0:
@@ -139,8 +144,8 @@ class TorusSubChoreography(SubGroupChoreography):
         radius = 900 * (1 + math.cos(elapsed * TORUS_RATE)) + 300
         height = 450 * (1 + math.sin(elapsed * TORUS_RATE)) + 800
 
-        self.renderer.draw_string_2d(10, 10, 2, 2, f"r {radius}", self.renderer.white())
-        self.renderer.draw_string_2d(10, 30, 2, 2, f"z {drones[0].pos[2]}", self.renderer.white())
+        # self.renderer.draw_string_2d(10, 10, 2, 2, f"r {radius}", self.renderer.white())
+        # self.renderer.draw_string_2d(10, 30, 2, 2, f"z {drones[0].pos[2]}", self.renderer.white())
 
         for index, drone in enumerate(drones):
             # This function was fit from the following data points, where I experimentally found deltas which
@@ -154,10 +159,10 @@ class TorusSubChoreography(SubGroupChoreography):
             progress = self.angular_progress[index]
             target = Vec3(radius * math.sin(progress), radius * math.cos(progress), height)
             to_target = target - Vec3(drone.pos[0], drone.pos[1], drone.pos[2])
-            self.renderer.draw_line_3d(drone.pos, target, self.renderer.yellow())
+            # self.renderer.draw_line_3d(drone.pos, target, self.renderer.yellow())
             aerial.target = vec3(target.x, target.y, target.z)
             aerial.t_arrival = drone.time + to_target.length() / 2000 + 0.3
-            aerial.step(time_delta)
+            aerial.step(0.008)
             drone.ctrl.boost = aerial.controls.boost
             drone.ctrl.pitch = aerial.controls.pitch
             drone.ctrl.yaw = aerial.controls.yaw
@@ -165,7 +170,7 @@ class TorusSubChoreography(SubGroupChoreography):
             drone.ctrl.jump = aerial.controls.jump
 
         self.previous_seconds_elapsed = packet.game_info.seconds_elapsed
-        self.renderer.end_rendering()
+        # self.renderer.end_rendering()
 
         return StepResult(finished=elapsed > 160)
 
@@ -180,6 +185,9 @@ class TorusChoreography(Choreography):
         self.renderer = self.game_interface.renderer
         self.drones_per_ring = 8
 
+    def pre_step(self, packet: GameTickPacket, drones: List[Drone]):
+        self.game_info.read_packet(packet)
+
     @staticmethod
     def get_num_bots():
         return 48
@@ -193,12 +201,7 @@ class TorusChoreography(Choreography):
         pause_time = 0.2
 
         self.sequence.append(DroneListStep(self.hide_ball))
-        self.sequence.append(DroneListStep(self.line_up))
-        self.sequence.append(DroneListStep(self.line_up))
-        self.sequence.append(DroneListStep(self.line_up))
-        self.sequence.append(DroneListStep(self.line_up))
-        self.sequence.append(DroneListStep(self.line_up))
-        self.sequence.append(DroneListStep(self.line_up))
+        self.sequence.append(LetAllCarsSpawn(self.game_interface, self.get_num_bots()))
         self.sequence.append(BlindBehaviorStep(SimpleControllerState(), pause_time))
 
         num_rings = len(drones) // self.drones_per_ring

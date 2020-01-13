@@ -13,7 +13,7 @@ class ChoreographyBase:
         self.finished = False
 
     def step(self, packet: GameTickPacket, drones: List[Drone]):
-        self.pre_step(drones)
+        self.pre_step(packet, drones)
         if self.sequence_index < len(self.sequence):
             step = self.sequence[self.sequence_index]
             result = step.perform(packet, drones)
@@ -25,7 +25,7 @@ class ChoreographyBase:
     def generate_sequence(self, drones: List[Drone]):
         pass
 
-    def pre_step(self, drones: List[Drone]):
+    def pre_step(self, packet: GameTickPacket, drones: List[Drone]):
         for drone in drones:
             drone.reset_ctrl()
 

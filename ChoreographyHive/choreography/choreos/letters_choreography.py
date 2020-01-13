@@ -20,7 +20,7 @@ class LettersChoreography(Choreography):
         self.bot_cnc: BotCnc = None
         self.cnc_extruders: List[CncExtruder] = []
 
-    def pre_step(self, drones: List[Drone]):
+    def pre_step(self, packet: GameTickPacket, drones: List[Drone]):
         pass  # Allow drones to maintain their controls state.
 
     def generate_sequence(self, drones: List[Drone]):
