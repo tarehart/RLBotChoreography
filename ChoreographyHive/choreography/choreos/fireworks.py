@@ -69,10 +69,8 @@ class FireworkSubChoreography(SubGroupChoreography):
 
         self.sequence.append(DroneListStep(self.line_up_on_ground))
         self.sequence.append(DroneListStep(self.wait_one, self.time_offset))
-        self.sequence.append(DroneListStep(self.cheater_takeoff))
-        self.sequence.append(DroneListStep(self.cheater_takeoff))
-        self.sequence.append(DroneListStep(self.cheater_takeoff))
-        self.sequence.append(DroneListStep(self.cheater_takeoff))
+        for i in range(60):
+            self.sequence.append(DroneListStep(self.cheater_takeoff))
 
         if len(drones) <= 6:
             self.sequence.append(DroneListStep(self.firework_flight))
