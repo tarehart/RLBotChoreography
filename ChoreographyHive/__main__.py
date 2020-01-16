@@ -93,6 +93,18 @@ class RLBotChoreography:
             VisualSettings(orange_looks, 1)
             ]
 
+        goal_explosion_palette = [
+            2817,  # Atomizer
+            1905,  # Fireworks
+            3131,  # Supernova III
+            3453,  # Solar Flare
+            2349,  # Poly Pop
+            1904,  # Electroshock
+            4522,  # Meta-Blast
+            2027,  # Party time
+            4523,  # Floppy Fish
+        ]
+
         player_config = match_config.player_configs[0]
         match_config.player_configs.clear()
         for i in range(max(len(bundles), self.min_bots)):
@@ -103,7 +115,8 @@ class RLBotChoreography:
                 # specific boost colors, this is a good place to do it.
                 copied.loadout_config = load_bot_appearance(looks_configs[i], 0)
             special_loadout = loadout_palette[i % len(loadout_palette)]
-            copied.loadout_config = special_loadout.loadout
+            copied.loadout_config = copy.deepcopy(special_loadout.loadout)
+            copied.loadout_config.goal_explosion_id = goal_explosion_palette[i % len(goal_explosion_palette)]
             copied.team = special_loadout.team
             match_config.player_configs.append(copied)
 

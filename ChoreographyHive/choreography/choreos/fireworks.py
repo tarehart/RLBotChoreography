@@ -24,6 +24,7 @@ class ExplodeBall(GroupStep):
         self.game_interface = game_interface
         self.location = location
         self.phase = 0
+        self.start_time = None
 
     def perform(self, packet: GameTickPacket, drones: List[Drone]) -> StepResult:
 
@@ -33,13 +34,21 @@ class ExplodeBall(GroupStep):
                 velocity=Vector3(0, 0, 0),
                 angular_velocity=Vector3(0, 0, 0)))))
             self.phase += 1
+            self.start_time = packet.game_info.seconds_elapsed
             return StepResult(finished=False)
-        else:
+        elif self.phase == 1:
+            touch_team = packet.game_ball.latest_touch.team
+            enemy_polarity = touch_team * -2 + 1
             self.game_interface.set_game_state(GameState(ball=BallState(physics=Physics(
-                location=Vector3(0, 5300, 100),
+                location=Vector3(0, 5300 * enemy_polarity, 100),
                 velocity=Vector3(0, 0, 0),
                 angular_velocity=Vector3(0, 0, 0)))))
-            return StepResult(finished=True)
+            self.phase += 1
+            return StepResult(finished=False)
+        else:
+            # Wait for the replay to be over.
+            elapsed_time = packet.game_info.seconds_elapsed - self.start_time
+            return StepResult(finished=packet.game_info.is_round_active and elapsed_time > 1)
 
 class FireworkSubChoreography(SubGroupChoreography):
 
@@ -69,15 +78,13 @@ class FireworkSubChoreography(SubGroupChoreography):
             self.sequence.append(DroneListStep(self.firework_flight))
             self.sequence.append(BlindBehaviorStep(SimpleControllerState(), 0.8))
         else:
-            self.sequence.append(BlindBehaviorStep(SimpleControllerState(boost=True), 1))
+            self.sequence.append(BlindBehaviorStep(SimpleControllerState(boost=True), 0.9))
 
         if self.use_goal_explosion:
             self.sequence.append(ExplodeBall(self.game_interface, self.start_position + Vec3(0, 0, 1800)))
-        self.sequence.append(BlindBehaviorStep(SimpleControllerState(pitch=1, jump=True, boost=True), 0.05))
-        self.sequence.append(BlindBehaviorStep(SimpleControllerState(pitch=-0.8, boost=True), 0.7))
-        if self.use_goal_explosion:
-            self.sequence.append(BlindBehaviorStep(SimpleControllerState(boost=True), 3))
         else:
+            self.sequence.append(BlindBehaviorStep(SimpleControllerState(pitch=1, jump=True, boost=True), 0.05))
+            self.sequence.append(BlindBehaviorStep(SimpleControllerState(pitch=-0.8, boost=True), 0.7))
             self.sequence.append(BlindBehaviorStep(SimpleControllerState(boost=True), 0.6))
 
     def wait_one(self, packet, drones, start_time):
@@ -109,24 +116,24 @@ class FireworkSubChoreography(SubGroupChoreography):
         return StepResult(finished=True)
 
     def cheater_takeoff(self, packet, drones, start_time) -> StepResult:
-        """
-        Puts all the cars in a tidy line, very close together.
-        """
 
         if len(drones) == 0:
             return StepResult(finished=True)
 
         car_states = {}
-        radian_spacing = 2 * math.pi / len(drones)
-        radius = len(drones) * 100 / 6
+        per_ring = min(24, len(drones))
+        radian_spacing = 2 * math.pi / per_ring
+        radius = 100 if per_ring == 6 else 650
 
         for index, drone in enumerate(drones):
-            progress = index * radian_spacing
+            ring_num = index // per_ring
+            progress = (index % per_ring + ring_num * 0.5) * radian_spacing
             radial_offset = Vec3(radius * math.sin(progress), radius * math.cos(progress), 0)
             target = self.start_position + radial_offset
 
+
             car_states[drone.index] = CarState(
-                Physics(location=Vector3(target.x, target.y, 100),
+                Physics(location=Vector3(target.x, target.y, 100 + ring_num * 160),
                         velocity=Vector3(0, 0, 1000),
                         rotation=Rotator(math.pi / 2, 0, progress + math.pi / 2)))
         self.game_interface.set_game_state(GameState(cars=car_states))
@@ -171,6 +178,23 @@ class FireworkSubChoreography(SubGroupChoreography):
         return StepResult(finished=elapsed > 0.5)
 
 
+class TapBallOnCarStep(GroupStep):
+
+    def __init__(self, game_interface: GameInterface, car: Drone):
+        self.game_interface = game_interface
+        self.car = car
+        self.frame_count = 0
+
+    def perform(self, packet: GameTickPacket, drones: List[Drone]) -> StepResult:
+        if self.frame_count == 0:
+            self.game_interface.set_game_state(GameState(ball=BallState(physics=Physics(
+                location=Vector3(self.car.pos[0], self.car.pos[1], self.car.pos[2] + 20),
+                velocity=Vector3(0, 0, -1),
+                angular_velocity=Vector3(0, 0, 0)))))
+        self.frame_count += 1
+        return StepResult(finished=self.frame_count > 30)
+
+
 class FireworksChoreography(Choreography):
 
     def __init__(self, game_interface: GameInterface):
@@ -206,16 +230,22 @@ class FireworksChoreography(Choreography):
             for n in range(0, num_missiles)
         ]))
 
-        self.sequence.append(SubGroupOrchestrator(group_list=[
-            FireworkSubChoreography(self.game_interface, self.game_info, 0, Vec3(0, 0, 50), drones, 0, True)
-        ]))
+        if len(drones) >= 9:
+            for i in range(0, 9):
+                self.sequence.append(DroneListStep(self.line_up))
+                self.sequence.append(BlindBehaviorStep(SimpleControllerState(), 0.5))
+                self.sequence.append(TapBallOnCarStep(self.game_interface, drones[i]))
+                self.sequence.append(SubGroupOrchestrator(group_list=[
+                    FireworkSubChoreography(self.game_interface, self.game_info, 0, Vec3(0, 0, 50), drones, 0, True)
+                ]))
+                self.sequence.append(LetAllCarsSpawn(self.game_interface, len(drones)))
 
     def line_up(self, packet, drones, start_time) -> StepResult:
         """
         Puts all the cars in a tidy line, very close together.
         """
         start_x = -2000
-        y_increment = 100
+        y_increment = 200
         start_y = -len(drones) * y_increment / 2
         start_z = 40
         car_states = {}
