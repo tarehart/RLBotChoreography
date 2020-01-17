@@ -2,6 +2,7 @@ import math
 
 
 # This is a helper class for vector math. You can extend it or delete if you want.
+from numpy.core.multiarray import ndarray
 from rlbot.utils.game_state_util import Vector3
 
 
@@ -33,6 +34,10 @@ class Vec3:
             self.x = float(x.x)
             self.y = float(x.y) if hasattr(x, 'y') else 0
             self.z = float(x.z) if hasattr(x, 'z') else 0
+        elif isinstance(x, ndarray):
+            self.x = x[0]
+            self.y = x[1]
+            self.z = x[2]
         else:
             self.x = float(x)
             self.y = float(y)

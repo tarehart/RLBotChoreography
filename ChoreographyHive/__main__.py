@@ -102,7 +102,7 @@ class RLBotChoreography:
             VisualSettings(orange_looks, 1)
             ]
 
-        use_alt = False
+        use_alt = True
 
         alt_loadout_palette: List[VisualSettings] = [
             VisualSettings(dark_blue_looks, 0),

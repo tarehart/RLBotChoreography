@@ -1,11 +1,26 @@
 from typing import List
 
-from rlbot.utils.game_state_util import CarState, Vector3, Rotator, Physics, GameState
+from rlbot.utils.game_state_util import CarState, Vector3, Rotator, Physics, GameState, BallState
 from rlbot.utils.structures.game_data_struct import GameTickPacket
 from rlbot.utils.structures.game_interface import GameInterface
 
 from choreography.drone import Drone
 from choreography.group_step import GroupStep, StepResult
+
+
+class HideBall(GroupStep):
+    def __init__(self, game_interface: GameInterface):
+        self.game_interface = game_interface
+
+    def perform(self, packet, drones) -> StepResult:
+        """
+        Places the ball above the roof of the arena to keep it out of the way.
+        """
+        self.game_interface.set_game_state(GameState(ball=BallState(physics=Physics(
+            location=Vector3(0, 0, 3000),
+            velocity=Vector3(0, 0, 0),
+            angular_velocity=Vector3(0, 0, 0)))))
+        return StepResult(finished=True)
 
 
 class LetAllCarsSpawn(GroupStep):
@@ -20,7 +35,7 @@ class LetAllCarsSpawn(GroupStep):
 
         elapsed = packet.game_info.seconds_elapsed - self.start_time
 
-        start_x = -2000
+        start_x = -4000
         y_increment = 100
         start_y = -4000
         start_z = 40

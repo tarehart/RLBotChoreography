@@ -10,7 +10,7 @@ from rlbot.utils.game_state_util import GameState, CarState, Physics, Vector3, R
 from rlbot.utils.structures.game_interface import GameInterface
 
 from choreography.choreography import Choreography
-from choreography.common.preparation import LetAllCarsSpawn
+from choreography.common.preparation import LetAllCarsSpawn, HideBall
 from choreography.drone import Drone, slow_to_pos
 from choreography.group_step import BlindBehaviorStep, DroneListStep, StepResult, GroupStep, SubGroupChoreography, \
     SubGroupOrchestrator
@@ -107,6 +107,7 @@ class TorusSubChoreography(SubGroupChoreography):
         self.aerials: List[Aerial] = []
         self.angular_progress: List[float] = []
         self.previous_seconds_elapsed = 0
+        self.dead_drones = []
 
     def generate_sequence(self, drones: List[Drone]):
         self.aerials = []
@@ -121,7 +122,7 @@ class TorusSubChoreography(SubGroupChoreography):
 
     def arrange_in_ground_circle(self, packet, drones, start_time) -> StepResult:
         elapsed = packet.game_info.seconds_elapsed - start_time
-        arrange_in_ground_circle(drones, self.game_interface, 4000, elapsed * GROUND_PROCESSION_RATE)
+        arrange_in_ground_circle(drones, self.game_interface, 3000, elapsed * GROUND_PROCESSION_RATE)
         return StepResult(finished=True)
 
     def torus_flight_pattern(self, packet, drones: List[Drone], start_time) -> StepResult:
@@ -148,6 +149,13 @@ class TorusSubChoreography(SubGroupChoreography):
         # self.renderer.draw_string_2d(10, 30, 2, 2, f"z {drones[0].pos[2]}", self.renderer.white())
 
         for index, drone in enumerate(drones):
+            if packet.game_ball.latest_touch.player_index == drone.index:
+                self.dead_drones.append(drone)
+                continue
+
+            if drone in self.dead_drones:
+                continue
+
             # This function was fit from the following data points, where I experimentally found deltas which
             # worked well with sampled radius values.
             # {2500, 0.7}, {1000, 0.9}, {500, 1.2}, {200, 2.0}
@@ -200,7 +208,7 @@ class TorusChoreography(Choreography):
 
         pause_time = 0.2
 
-        self.sequence.append(DroneListStep(self.hide_ball))
+        self.sequence.append(HideBall(self.game_interface))
         self.sequence.append(LetAllCarsSpawn(self.game_interface, self.get_num_bots()))
         self.sequence.append(BlindBehaviorStep(SimpleControllerState(), pause_time))
 
@@ -211,32 +219,3 @@ class TorusChoreography(Choreography):
                                  drones[i * self.drones_per_ring:(i + 1) * self.drones_per_ring], 0)
             for i in range(0, num_rings)
         ]))
-
-    def line_up(self, packet, drones, start_time) -> StepResult:
-        """
-        Puts all the cars in a tidy line, very close together.
-        """
-        car_states = {}
-        radian_spacing = 2 * math.pi / len(drones)
-        radius = 4000
-
-        for index, drone in enumerate(drones):
-            progress = index * radian_spacing
-            target = Vec3(radius * math.sin(progress), radius * math.cos(progress), 1000)
-
-            car_states[drone.index] = CarState(
-                Physics(location=Vector3(target.x, target.y, target.z - 500),
-                        velocity=Vector3(0, 0, 800),
-                        rotation=Rotator(math.pi / 2, 0, 0)))
-        self.game_interface.set_game_state(GameState(cars=car_states))
-        return StepResult(finished=True)
-
-    def hide_ball(self, packet, drones, start_time) -> StepResult:
-        """
-        Places the ball above the roof of the arena to keep it out of the way.
-        """
-        self.game_interface.set_game_state(GameState(ball=BallState(physics=Physics(
-            location=Vector3(0, 0, 3000),
-            velocity=Vector3(0, 0, 0),
-            angular_velocity=Vector3(0, 0, 0)))))
-        return StepResult(finished=True)
