@@ -76,9 +76,18 @@ class RLBotChoreography:
 
         primary_loadout_file = create_looks_configurations().parse_file(os.path.join(base_path, 'loadout_primary.cfg'))
         secondary_loadout_file = create_looks_configurations().parse_file(os.path.join(base_path, 'loadout_secondary.cfg'))
+
+        blue_yellow_loadout_file = create_looks_configurations().parse_file(os.path.join(base_path, 'appearance-blue-yellow.cfg'))
+        red_blue_loadout_file = create_looks_configurations().parse_file(os.path.join(base_path, 'appearance-red-blue.cfg'))
+
+
         blue_looks = load_bot_appearance(primary_loadout_file, 0)
         orange_looks = load_bot_appearance(primary_loadout_file, 1)
         purple_looks = load_bot_appearance(secondary_loadout_file, 0)
+
+        red_looks = load_bot_appearance(red_blue_loadout_file, 1)
+        dark_blue_looks = load_bot_appearance(red_blue_loadout_file, 0)
+        yellow_looks = load_bot_appearance(blue_yellow_loadout_file, 1)
 
         # 36   - flamethrower
         # 37   - flamethrower blue
@@ -93,6 +102,14 @@ class RLBotChoreography:
             VisualSettings(orange_looks, 1)
             ]
 
+        use_alt = False
+
+        alt_loadout_palette: List[VisualSettings] = [
+            VisualSettings(dark_blue_looks, 0),
+            VisualSettings(yellow_looks, 1),
+            VisualSettings(red_looks, 1)
+        ]
+
         goal_explosion_palette = [
             2817,  # Atomizer
             1905,  # Fireworks
@@ -100,9 +117,9 @@ class RLBotChoreography:
             3453,  # Solar Flare
             2349,  # Poly Pop
             1904,  # Electroshock
-            4522,  # Meta-Blast
-            2027,  # Party time
-            4523,  # Floppy Fish
+            # 4522,  # Meta-Blast
+            # 2027,  # Party time
+            # 4523,  # Floppy Fish
         ]
 
         player_config = match_config.player_configs[0]
@@ -114,7 +131,10 @@ class RLBotChoreography:
                 # If you want to override bot appearances to get a certain visual effect, e.g. with
                 # specific boost colors, this is a good place to do it.
                 copied.loadout_config = load_bot_appearance(looks_configs[i], 0)
-            special_loadout = loadout_palette[i % len(loadout_palette)]
+            if i >= 39 and use_alt:
+                special_loadout = alt_loadout_palette[i % len(loadout_palette)]
+            else:
+                special_loadout = loadout_palette[i % len(loadout_palette)]
             copied.loadout_config = copy.deepcopy(special_loadout.loadout)
             copied.loadout_config.goal_explosion_id = goal_explosion_palette[i % len(goal_explosion_palette)]
             copied.team = special_loadout.team
