@@ -68,6 +68,11 @@ class AimBotBall(GroupStep):
     def to_drone(self, game_ball, drone: Drone) -> Vec3:
         return Vec3(drone.pos) - Vec3(game_ball.physics.location)
 
+    def is_ball_off_target(self, ball_pos: Vec3, ball_vel: Vec3, drone: Drone) -> bool:
+        drone_shadow = Vec3(drone.pos) + ball_vel.rescale(100)
+        to_shadow = drone_shadow - ball_pos
+        return ball_vel.ang_to(to_shadow) > .1
+
     def lead_target(self, game_ball, drone: Drone) -> Vec3:
         to_drone = self.to_drone(game_ball, drone)
         distance = to_drone.length()
@@ -90,10 +95,19 @@ class AimBotBall(GroupStep):
                 min_deviation = deviation
         return next_target
 
+    def fling_ball(self, ball_pos: Vec3, ball_vel: Vec3, packet: GameTickPacket):
+        vel = self.lead_target(packet.game_ball, self.target_drone).rescale(self.fling_speed)
+        anticipated_ball_pos = ball_pos + ball_vel * 0.01
+        self.game_interface.set_game_state(GameState(ball=BallState(Physics(
+            location=Vector3(anticipated_ball_pos.x, anticipated_ball_pos.y, anticipated_ball_pos.z),
+            velocity=Vector3(vel.x, vel.y, vel.z)))))
+
     def perform(self, packet: GameTickPacket, drones: List[Drone]) -> StepResult:
 
         latest_touch_index = packet.game_ball.latest_touch.player_index
         elapsed = packet.game_info.seconds_elapsed
+        ball_pos = Vec3(packet.game_ball.physics.location)
+        ball_vel = Vec3(packet.game_ball.physics.velocity)
         if self.recent_touch_index is None or self.recent_touch_index != latest_touch_index:
             # Time to find a new target
             if self.recent_touch_index is not None:
@@ -108,23 +122,16 @@ class AimBotBall(GroupStep):
                 return StepResult(finished=True)
             self.fling_moment = elapsed + self.wait_time
 
-        to_drone = self.to_drone(packet.game_ball, self.target_drone)
-
         if self.fling_moment is not None and self.fling_moment < elapsed:
-            vel = self.lead_target(packet.game_ball, self.target_drone).rescale(self.fling_speed)
-            self.game_interface.set_game_state(GameState(ball=BallState(Physics(
-                velocity=Vector3(vel.x, vel.y, vel.z)))))
+            self.fling_ball(ball_pos, ball_vel, packet)
             self.fling_moment = None
 
-        ball_vel = Vec3(packet.game_ball.physics.velocity)
         if ball_vel.is_zero():
             ball_vel = Vec3(0, 0, -1)
 
-        if self.fling_moment is None and to_drone.ang_to(ball_vel) > 0.1:
+        if self.fling_moment is None and self.is_ball_off_target(ball_pos, ball_vel, self.target_drone):
             # We're about to miss, correct the ball mid flight!
-            vel = self.lead_target(packet.game_ball, self.target_drone).rescale(self.fling_speed)
-            self.game_interface.set_game_state(GameState(ball=BallState(Physics(
-                velocity=Vector3(vel.x, vel.y, vel.z)))))
+            self.fling_ball(ball_pos, ball_vel, packet)
 
         return StepResult(finished=False)
 
