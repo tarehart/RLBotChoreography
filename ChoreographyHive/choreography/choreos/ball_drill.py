@@ -9,7 +9,7 @@ from rlbot.utils.structures.game_interface import GameInterface
 from choreography.choreography import Choreography
 from choreography.choreos.torus import TorusSubChoreography, TORUS_RATE, arrange_in_ground_circle
 from choreography.common.preparation import LetAllCarsSpawn, HideBall
-from choreography.drone import Drone
+from choreography.drone import Drone, slow_to_pos, fast_to_pos
 from choreography.group_step import DroneListStep, StepResult, SubGroupChoreography, \
     SubGroupOrchestrator, GroupStep
 from util.vec import Vec3
@@ -47,12 +47,33 @@ class DrillIntoTorusChoreography(Choreography):
             drill_moment = 65
 
             ball_drill = BallDrillChoreography(self.game_interface, drones[39:49], drill_moment)
-            self.sequence.append(SubGroupOrchestrator(
-                group_list=torus_rings + [
-                    ball_drill,
-                    AimBotSubgroup(self.game_interface, drones[0:39], drill_moment + ball_drill.ball_release + 0.05)
-                ]))
 
+            group_list = [
+                ball_drill,
+                AimBotSubgroup(self.game_interface, drones[0:39], drill_moment + ball_drill.ball_release + 0.05),
+                BallFrenzySubgroup(drones[0:39], 85)
+            ]
+
+            group_list += torus_rings
+
+            self.sequence.append(SubGroupOrchestrator(group_list=group_list))
+
+
+class BallFrenzySubgroup(SubGroupChoreography):
+
+    def generate_sequence(self, drones: List[Drone]):
+        self.sequence.clear()
+        self.sequence.append(DroneListStep(self.curve_toward_ball))
+
+    def curve_toward_ball(self, packet, drones, start_time) -> StepResult:
+        ball_pos = Vec3(packet.game_ball.physics.location)
+        for drone in drones:
+            drone_pos = Vec3(drone.pos)
+            to_ball = ball_pos - drone_pos
+            perpendicular = to_ball.cross(Vec3(0, 0, 1)).rescale(800)
+            target = ball_pos + perpendicular
+            slow_to_pos(drone, [target.x, target.y, target.z])
+        return StepResult(finished=False)
 
 class AimBotBall(GroupStep):
     def __init__(self, hit_list: List[Drone], game_interface):
@@ -238,5 +259,5 @@ class BallDrillChoreography(SubGroupChoreography):
                     velocity=Vector3(0, 1000, -10000)))
 
         self.game_interface.set_game_state(GameState(cars=car_states, ball=ball_state))
-        return StepResult(finished=elapsed_time > self.ball_release + 3)
+        return StepResult(finished=elapsed_time > self.ball_release + 20)
 
