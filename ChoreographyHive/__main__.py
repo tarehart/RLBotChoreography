@@ -102,7 +102,7 @@ class RLBotChoreography:
             VisualSettings(orange_looks, 1)
             ]
 
-        use_alt = False
+        num_normal = 0  # Typically 39 or 48
 
         alt_loadout_palette: List[VisualSettings] = [
             VisualSettings(dark_blue_looks, 0),
@@ -131,7 +131,7 @@ class RLBotChoreography:
                 # If you want to override bot appearances to get a certain visual effect, e.g. with
                 # specific boost colors, this is a good place to do it.
                 copied.loadout_config = load_bot_appearance(looks_configs[i], 0)
-            if i >= 39 and use_alt:
+            if i >= num_normal:
                 special_loadout = alt_loadout_palette[i % len(loadout_palette)]
             else:
                 special_loadout = loadout_palette[i % len(loadout_palette)]
