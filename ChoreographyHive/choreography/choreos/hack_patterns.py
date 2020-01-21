@@ -16,6 +16,7 @@ from choreography.common.preparation import LetAllCarsSpawn, HideBall
 from choreography.drone import Drone, slow_to_pos
 from choreography.group_step import BlindBehaviorStep, DroneListStep, StepResult, GroupStep, SubGroupChoreography, \
     SubGroupOrchestrator
+from util.orientation import look_at_orientation
 from util.vec import Vec3
 
 BASE_CAR_Z = 17
@@ -30,7 +31,8 @@ class HackSubgroup(SubGroupChoreography):
         self.game_info = game_info
         self.aerials: List[Aerial] = []
         self.target_list = []
-        self.center_of_rotation = np.array([0, -3000, 800])
+        self.center_of_rotation = np.array([0, 0, 0])
+        self.translate_to = np.array([0, 0, 600])
 
 
     def generate_sequence(self, drones: List[Drone]):
@@ -46,8 +48,8 @@ class HackSubgroup(SubGroupChoreography):
         self.target_list = [
             np.array([
                 (i % axis_1) * 200 - 300,
-                ((i // axis_1) % (axis_1 * axis_2)) * 200 - 100,
-                (i // (axis_1 * axis_2)) * 200 + 200
+                ((i // axis_1) % axis_2) * 200 - 300,
+                (i // (axis_1 * axis_2)) * 200 - 200
             ])
             for i in range(len(drones))
         ]
@@ -57,6 +59,11 @@ class HackSubgroup(SubGroupChoreography):
 
         self.sequence.append(DroneListStep(self.flight_pattern))
 
+    def get_inward_rotation(self, index) -> Rotator:
+        loc = self.target_list[index]
+        orientation = look_at_orientation(Vec3(loc), Vec3(0, 0, 1))
+        return  orientation.to_rotator()
+
     def arrange_in_grid(self, packet, drones, start_time) -> StepResult:
         if len(drones) == 0 or len(self.target_list) < len(drones):
             return StepResult(finished=True)
@@ -64,13 +71,14 @@ class HackSubgroup(SubGroupChoreography):
         car_states = {}
 
         for index, drone in enumerate(drones):
-            loc = self.target_list[index]
+            loc = self.target_list[index] + self.translate_to
+            rotation = self.get_inward_rotation(index)
 
             car_states[drone.index] = CarState(
                 Physics(location=Vector3(loc[0], loc[1], loc[2]),
                         velocity=Vector3(0, 0, 400),
                         angular_velocity=Vector3(0, 0, 0),
-                        rotation=Rotator(math.pi / 2, 0, 0)))
+                        rotation=rotation))
         self.game_interface.set_game_state(GameState(cars=car_states))
         return StepResult(finished=True)
 
@@ -78,19 +86,21 @@ class HackSubgroup(SubGroupChoreography):
 
         elapsed = packet.game_info.seconds_elapsed - start_time
 
-        rotation = Rotation.from_rotvec([0, elapsed * 8, 0]).as_matrix()
+        rotation = Rotation.from_rotvec([0, elapsed * 6, elapsed * 2]).as_matrix()
         car_states = {}
 
         for index, drone in enumerate(drones):
             drone.ctrl.boost = True
             spawn_loc = self.target_list[index]
             loc = rotation.dot(spawn_loc - self.center_of_rotation) + self.center_of_rotation
+            loc += self.translate_to
+            state_rot = self.get_inward_rotation(index)
 
             car_states[drone.index] = CarState(
                 Physics(location=Vector3(loc[0], loc[1], loc[2]),
                         velocity=Vector3(0, 0, 400),
                         angular_velocity=Vector3(0, 0, 0),
-                        rotation=Rotator(math.pi / 2, 0, 0)))
+                        rotation=state_rot))
         self.game_interface.set_game_state(GameState(cars=car_states))
 
         return StepResult(finished=elapsed > 7)
