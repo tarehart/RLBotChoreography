@@ -6,6 +6,7 @@ from rlbot.agents.base_agent import SimpleControllerState
 from rlbot.utils.game_state_util import GameState, CarState, Vector3, Physics, Rotator
 
 from choreography.drone import Drone
+from util.orientation import look_at_orientation
 from util.vec import Vec3
 
 
@@ -78,7 +79,7 @@ class BotCnc:
         self.normal = normal
         self.scale = scale
         self.speed = speed
-        self.previous_position = origin
+        self.previous_position = None
         self.list: List[Instruction] = []
         self.thickness_instructions: List[List[ThicknessKeyframe]] = []
 
@@ -95,7 +96,10 @@ class BotCnc:
     def move_to_position(self, x: float, y: float):
         end = self.origin + Vec3(x, y) * self.scale
         # TODO: incorporate self.normal by doing some kind of rotation transform.
-        self.list.append(Move(self.previous_position, end, self.speed))
+        start = self.previous_position
+        if start is None:
+            start = end
+        self.list.append(Move(start, end, self.speed))
         self.previous_position = end
 
 
@@ -119,7 +123,6 @@ def determine_radius_from_powerstroke(step_index, progress_within_step, data: Li
     return data[-1].thickness
 
 
-@dataclass
 class CncExtruder:
     def __init__(self, drones: List[Drone], bot_cnc: BotCnc):
         self.drones = drones
@@ -132,38 +135,15 @@ class CncExtruder:
     def is_finished(self):
         return self.step_index >= len(self.bot_cnc.list)
 
+    def restart(self):
+        self.step_index = 0
+        self.step_start_time = None
+        self.path_index = 0
+        self.distance_on_current_path_from_prior_segments = 0
+
     def arrange_drones(self, extruder_position: Vec3, velocity: Vec3, game_time: float, radius: float) -> Dict[
         int, CarState]:
-        car_states: Dict[int, CarState] = {}
-        if len(self.drones) == 0:
-            return car_states
-        if len(self.drones) == 1:
-            drone = self.drones[0]
-            car_state = CarState(physics=Physics())
-            car_state.physics.velocity = velocity.to_setter()
-            car_state.physics.location = Vector3(
-                extruder_position.x,
-                extruder_position.y,
-                extruder_position.z)
-            car_state.physics.rotation = Rotator(math.pi / 2, 0, 0)
-            car_states[drone.index] = car_state
-        else:
-            radian_separation = math.pi * 2 / len(self.drones)
-            rotation_speed = 0.01 * self.bot_cnc.speed
-            radius_bonus = 1.4  # The way the bots move in practice makes the radius look too small, so compensate.
-            for i, drone in enumerate(self.drones):
-                rotation_amount = i * radian_separation + game_time * rotation_speed
-                y_offset = math.sin(rotation_amount) * radius * radius_bonus
-                x_offset = math.cos(rotation_amount) * radius * radius_bonus
-                car_state = CarState(physics=Physics())
-                car_state.physics.velocity = velocity.to_setter()
-                car_state.physics.location = Vector3(
-                    extruder_position.x + x_offset,
-                    extruder_position.y + y_offset,
-                    extruder_position.z)
-                car_state.physics.rotation = Rotator(math.pi / 2, rotation_amount - math.pi / 2, 0)
-                car_states[drone.index] = car_state
-        return car_states
+        raise NotImplementedError
 
     def manipulate_drones(self, game_time: float) -> InstructionResult:
         step = self.bot_cnc.list[self.step_index]
@@ -231,3 +211,77 @@ class CncExtruder:
             self.step_start_time = None
 
         return InstructionResult(self.is_finished(), car_states)
+
+
+class RadialExtruder(CncExtruder):
+
+    def arrange_drones(self, extruder_position: Vec3, velocity: Vec3, game_time: float, radius: float) -> Dict[
+        int, CarState]:
+        car_states: Dict[int, CarState] = {}
+        if len(self.drones) == 0:
+            return car_states
+        if len(self.drones) == 1:
+            drone = self.drones[0]
+            car_state = CarState(physics=Physics())
+            car_state.physics.velocity = velocity.to_setter()
+            car_state.physics.location = Vector3(
+                extruder_position.x,
+                extruder_position.y,
+                extruder_position.z)
+            car_state.physics.rotation = Rotator(math.pi / 2, 0, 0)
+            car_states[drone.index] = car_state
+        else:
+            radian_separation = math.pi * 2 / len(self.drones)
+            rotation_speed = 0.01 * self.bot_cnc.speed
+            radius_bonus = 1.4  # The way the bots move in practice makes the radius look too small, so compensate.
+            for i, drone in enumerate(self.drones):
+                rotation_amount = i * radian_separation + game_time * rotation_speed
+                y_offset = math.sin(rotation_amount) * radius * radius_bonus
+                x_offset = math.cos(rotation_amount) * radius * radius_bonus
+                car_state = CarState(physics=Physics())
+                car_state.physics.velocity = velocity.to_setter()
+                car_state.physics.location = Vector3(
+                    extruder_position.x + x_offset,
+                    extruder_position.y + y_offset,
+                    extruder_position.z)
+                car_state.physics.rotation = Rotator(math.pi / 2, rotation_amount - math.pi / 2, 0)
+                car_states[drone.index] = car_state
+        return car_states
+
+
+class VelocityAlignedExtruder(CncExtruder):
+
+    def arrange_drones(self, extruder_position: Vec3, velocity: Vec3, game_time: float, radius: float) -> Dict[
+        int, CarState]:
+        car_states: Dict[int, CarState] = {}
+        if len(self.drones) == 0:
+            return car_states
+        if len(self.drones) == 1:
+            drone = self.drones[0]
+            car_state = CarState(physics=Physics())
+            car_state.physics.velocity = velocity.to_setter()
+            car_state.physics.location = Vector3(
+                extruder_position.x,
+                extruder_position.y,
+                extruder_position.z)
+            if not velocity.is_zero():
+                car_state.physics.rotation = look_at_orientation(velocity, Vec3(0, 0, 1)).to_rotator()
+            car_states[drone.index] = car_state
+        else:
+            radian_separation = math.pi * 2 / len(self.drones)
+            rotation_speed = 0.01 * self.bot_cnc.speed
+            radius_bonus = 1.4  # The way the bots move in practice makes the radius look too small, so compensate.
+            left_component = velocity.cross(Vec3(0.2342, 423, 2341.1)).normalized()
+            up_component = velocity.cross(left_component).normalized()
+            for i, drone in enumerate(self.drones):
+                rotation_amount = i * radian_separation + game_time * rotation_speed
+                y_offset = math.sin(rotation_amount) * radius * radius_bonus
+                x_offset = math.cos(rotation_amount) * radius * radius_bonus
+                car_state = CarState(physics=Physics())
+                car_state.physics.velocity = velocity.to_setter()
+                loc = extruder_position + x_offset * up_component + y_offset * left_component
+                car_state.physics.location = loc.to_setter()
+                if not velocity.is_zero():
+                    car_state.physics.rotation = look_at_orientation(velocity, Vec3(0, 0, 1)).to_rotator()
+                car_states[drone.index] = car_state
+        return car_states

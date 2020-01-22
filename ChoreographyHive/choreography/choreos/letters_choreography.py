@@ -7,7 +7,7 @@ from rlbot.utils.structures.game_interface import GameInterface
 from choreography.choreography import Choreography
 from choreography.drone import Drone
 from choreography.group_step import DroneListStep, StepResult
-from cnc.cnc_instructions import CncExtruder
+from cnc.cnc_instructions import CncExtruder, RadialExtruder
 from cnc.gcode_parser import GCodeParser, BotCnc
 from util.vec import Vec3
 
@@ -30,7 +30,7 @@ class LettersChoreography(Choreography):
         self.bot_cnc = parser.parse_file('./cnc/rlbot.nc', Vec3(-3000, 0, 1400), Vec3(0, 0, 1), 150, 2000)
 
         for drone in drones:
-            self.cnc_extruders.append(CncExtruder([drone], self.bot_cnc))
+            self.cnc_extruders.append(RadialExtruder([drone], self.bot_cnc))
 
         self.sequence.clear()
         self.sequence.append(DroneListStep(self.run_cnc))
