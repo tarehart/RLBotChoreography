@@ -36,7 +36,10 @@ class Orientation:
 def look_at_orientation(look_at: Vec3, up_direction: Vec3) -> Orientation:
     forward = look_at.normalized()
     up = up_direction.normalized()
-    left = Vec3(up.cross(forward).normalized())
+    left = Vec3(up.cross(forward))
+    if left.is_zero():
+        left = Vec3(1, 0, 0)
+    left = left.normalized()
 
     pitch = math.atan2(forward.z, Vec3(forward.x, forward.y, 0).length())
     yaw = math.atan2(forward.y, forward.x)
