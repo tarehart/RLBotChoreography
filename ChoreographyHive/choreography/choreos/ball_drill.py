@@ -1,4 +1,5 @@
 import math
+from random import random, randint
 from typing import List
 
 from RLUtilities.GameInfo import GameInfo
@@ -44,7 +45,7 @@ class DrillIntoTorusChoreography(Choreography):
                 for i in range(0, num_rings)
             ]
 
-            drill_moment = 65
+            drill_moment = 15
 
             ball_drill = BallDrillChoreography(self.game_interface, drones[39:49], drill_moment)
 
@@ -116,12 +117,19 @@ class AimBotBall(GroupStep):
                 min_deviation = deviation
         return next_target
 
-    def fling_ball(self, ball_pos: Vec3, ball_vel: Vec3, packet: GameTickPacket):
+    def rand_angular_velocity_component(self):
+        return randint(-50, 50)
+
+    def fling_ball(self, ball_pos: Vec3, ball_vel: Vec3, packet: GameTickPacket, change_spin: bool):
         vel = self.lead_target(packet.game_ball, self.target_drone).rescale(self.fling_speed)
         anticipated_ball_pos = ball_pos + ball_vel * 0.01
+        spin = Vector3(
+            self.rand_angular_velocity_component(),
+            self.rand_angular_velocity_component(),
+            self.rand_angular_velocity_component())
         self.game_interface.set_game_state(GameState(ball=BallState(Physics(
             location=Vector3(anticipated_ball_pos.x, anticipated_ball_pos.y, anticipated_ball_pos.z),
-            velocity=Vector3(vel.x, vel.y, vel.z)))))
+            velocity=Vector3(vel.x, vel.y, vel.z), angular_velocity=spin))))
 
     def perform(self, packet: GameTickPacket, drones: List[Drone]) -> StepResult:
 
@@ -138,13 +146,13 @@ class AimBotBall(GroupStep):
                         self.remaining_targets.remove(drone)
                         break
             self.recent_touch_index = latest_touch_index
-            self.target_drone = self.find_next_target(packet)
-            if self.target_drone is None:
-                return StepResult(finished=True)
             self.fling_moment = elapsed + self.wait_time
 
         if self.fling_moment is not None and self.fling_moment < elapsed:
-            self.fling_ball(ball_pos, ball_vel, packet)
+            self.target_drone = self.find_next_target(packet)
+            if self.target_drone is None:
+                return StepResult(finished=True)
+            self.fling_ball(ball_pos, ball_vel, packet, True)
             self.fling_moment = None
 
         if ball_vel.is_zero():
@@ -152,7 +160,7 @@ class AimBotBall(GroupStep):
 
         if self.fling_moment is None and self.is_ball_off_target(ball_pos, ball_vel, self.target_drone):
             # We're about to miss, correct the ball mid flight!
-            self.fling_ball(ball_pos, ball_vel, packet)
+            self.fling_ball(ball_pos, ball_vel, packet, False)
 
         return StepResult(finished=False)
 

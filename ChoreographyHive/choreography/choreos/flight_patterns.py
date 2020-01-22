@@ -6,8 +6,8 @@ import numpy as np
 from RLUtilities.GameInfo import GameInfo
 from RLUtilities.Maneuvers import vec3, Aerial
 from rlbot.agents.base_agent import SimpleControllerState
-from rlbot.messages.flat.GameTickPacket import GameTickPacket
 from rlbot.utils.game_state_util import GameState, CarState, Physics, Vector3, Rotator, BallState
+from rlbot.utils.structures.game_data_struct import GameTickPacket
 from rlbot.utils.structures.game_interface import GameInterface
 from scipy.spatial.transform import Rotation
 

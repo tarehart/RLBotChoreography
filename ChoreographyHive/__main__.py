@@ -86,7 +86,7 @@ class RLBotChoreography:
         purple_looks = load_bot_appearance(secondary_loadout_file, 0)
 
         red_looks = load_bot_appearance(red_blue_loadout_file, 1)
-        dark_blue_looks = load_bot_appearance(red_blue_loadout_file, 0)
+        dark_blue_looks = load_bot_appearance(blue_yellow_loadout_file, 0)
         yellow_looks = load_bot_appearance(blue_yellow_loadout_file, 1)
 
         # 36   - flamethrower
