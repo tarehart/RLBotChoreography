@@ -45,14 +45,14 @@ class DrillIntoTorusChoreography(Choreography):
                 for i in range(0, num_rings)
             ]
 
-            drill_moment = 15
+            drill_moment = 95
 
             ball_drill = BallDrillChoreography(self.game_interface, drones[39:49], drill_moment)
 
             group_list = [
                 ball_drill,
                 AimBotSubgroup(self.game_interface, drones[0:39], drill_moment + ball_drill.ball_release + 0.05),
-                BallFrenzySubgroup(drones[0:39], 85)
+                # BallFrenzySubgroup(drones[0:39], 85)
             ]
 
             group_list += torus_rings
@@ -144,6 +144,8 @@ class AimBotBall(GroupStep):
                 for drone in self.remaining_targets:
                     if drone.index == latest_touch_index:
                         self.remaining_targets.remove(drone)
+                        # In the torus we'll check this and use it to stop flying.
+                        drone.attributes["sniped"] = True
                         break
             self.recent_touch_index = latest_touch_index
             self.fling_moment = elapsed + self.wait_time
@@ -190,6 +192,7 @@ class BallDrillChoreography(SubGroupChoreography):
         self.rotation_speed = 0.04
         self.free_ball = False
         self.ball_release = 9
+        self.radius = 300
 
     @staticmethod
     def get_num_bots():
@@ -220,7 +223,6 @@ class BallDrillChoreography(SubGroupChoreography):
 
         car_states = {}
         radian_separation = math.pi * 2 / len(drones)
-        radius = 300
         radius_bonus = 1.4  # The way the bots move in practice makes the radius look too small, so compensate.
         car_pitch = -math.pi / 2
         car_roll = 0
@@ -233,9 +235,11 @@ class BallDrillChoreography(SubGroupChoreography):
             car_pitch = min(0, -math.pi / 2 + bonus_time * 1)
             car_roll = min(math.pi, bonus_time * 4)
             if self.free_ball:
-                self.rotation_speed *= 0.99
-            self.rotation_speed += 0.0005
-            radius -= bonus_time * 40
+                self.radius += 0.12
+            else:
+                self.radius = 300 - bonus_time * 35
+
+        self.rotation_speed = 5 / self.radius + 0.03
 
         ball_height = max(4000 - elapsed_time * 500, 1870)
 
@@ -243,8 +247,8 @@ class BallDrillChoreography(SubGroupChoreography):
 
         for i, drone in enumerate(drones):
             drone_rotation_amount = i * radian_separation + self.rotation_amount
-            y_offset = math.sin(drone_rotation_amount) * radius * radius_bonus
-            x_offset = math.cos(drone_rotation_amount) * radius * radius_bonus
+            y_offset = math.sin(drone_rotation_amount) * self.radius * radius_bonus
+            x_offset = math.cos(drone_rotation_amount) * self.radius * radius_bonus
             car_state = CarState(physics=Physics())
             car_state.physics.velocity = Vector3(0, 0, 0)  # TODO: motion toward next
             car_state.physics.location = Vector3(
@@ -253,7 +257,7 @@ class BallDrillChoreography(SubGroupChoreography):
                 drill_position.z)
             car_state.physics.rotation = Rotator(car_pitch, drone_rotation_amount, car_roll)
             car_states[drone.index] = car_state
-            drone.ctrl.boost = True
+            drone.ctrl.boost = elapsed_time > 5
 
         ball_state = None
 
@@ -267,5 +271,5 @@ class BallDrillChoreography(SubGroupChoreography):
                     velocity=Vector3(0, 1000, -10000)))
 
         self.game_interface.set_game_state(GameState(cars=car_states, ball=ball_state))
-        return StepResult(finished=elapsed_time > self.ball_release + 20)
+        return StepResult(finished=elapsed_time > self.ball_release + 40)
 

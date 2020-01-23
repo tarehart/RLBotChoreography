@@ -107,7 +107,6 @@ class TorusSubChoreography(SubGroupChoreography):
         self.aerials: List[Aerial] = []
         self.angular_progress: List[float] = []
         self.previous_seconds_elapsed = 0
-        self.dead_drones = []
 
     def generate_sequence(self, drones: List[Drone]):
         self.aerials = []
@@ -149,11 +148,7 @@ class TorusSubChoreography(SubGroupChoreography):
         # self.renderer.draw_string_2d(10, 30, 2, 2, f"z {drones[0].pos[2]}", self.renderer.white())
 
         for index, drone in enumerate(drones):
-            if packet.game_ball.latest_touch.player_index == drone.index:
-                self.dead_drones.append(drone)
-                continue
-
-            if drone in self.dead_drones:
+            if "sniped" in drone.attributes:
                 continue
 
             # This function was fit from the following data points, where I experimentally found deltas which

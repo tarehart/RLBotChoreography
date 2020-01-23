@@ -18,6 +18,7 @@ class Drone:
         self.orientation = None
         self.game_car = None
         self.ctrl: SimpleControllerState = SimpleControllerState()
+        self.attributes = {}
 
     def update(self, game_car: PlayerInfo, time: float):
         self.pos = a3v(game_car.physics.location)
