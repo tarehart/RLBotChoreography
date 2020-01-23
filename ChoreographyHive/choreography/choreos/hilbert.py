@@ -52,10 +52,10 @@ def moore(n, x0, y0, xi, xj, yi, yj):
 
 
 class MooreCurve:
-    def __init__(self):
-        curve_tuples = moore(4, -3000, -3000, 6000, 0, 0, 6000)
+    def __init__(self, extent: float, speed: float):
+        curve_tuples = moore(4, -extent, -extent, extent * 2, 0, 0, extent * 2)
         # self.points = [Vec3(p[0], p[1], 80) for p in curve_tuples]
-        self.bot_cnc = BotCnc(Vec3(0, 0, 70), Vec3(0, 0, 1), 1, 2000)
+        self.bot_cnc = BotCnc(Vec3(0, 0, 50), Vec3(0, 0, 1), 1, speed)
         for index, point in enumerate(curve_tuples):
             self.bot_cnc.move_to_position(point[0], point[1])
             if index == 0:
@@ -67,7 +67,8 @@ class MooreCurveChoreo(Choreography):
     def __init__(self, game_interface: GameInterface):
         super().__init__()
         self.game_interface = game_interface
-        self.moore_curve = MooreCurve()
+        self.time_between_cars = 0.75
+        self.moore_curve = MooreCurve(extent=2000, speed=1300)
         self.cnc_extruders: List[CncExtruder] = []
 
     def pre_step(self, packet: GameTickPacket, drones: List[Drone]):
@@ -83,7 +84,7 @@ class MooreCurveChoreo(Choreography):
             self.cnc_extruders.append(VelocityAlignedExtruder([drone], self.moore_curve.bot_cnc))
 
         self.sequence.clear()
-        self.sequence.append(HideBall(self.game_interface))
+        self.sequence.append(HideBall(self.game_interface, -400))
         self.sequence.append(LetAllCarsSpawn(self.game_interface, self.get_num_bots()))
         self.sequence.append(DroneListStep(self.run_cnc))
 
@@ -95,7 +96,7 @@ class MooreCurveChoreo(Choreography):
         for i, extruder in enumerate(self.cnc_extruders):
             if extruder.is_finished():
                 extruder.restart()
-            if i * 0.7 <= elapsed and not extruder.is_finished():
+            if i * self.time_between_cars <= elapsed and not extruder.is_finished():
                 instruction_result = extruder.manipulate_drones(game_time)
                 if instruction_result.car_states:
                     car_states.update(instruction_result.car_states)

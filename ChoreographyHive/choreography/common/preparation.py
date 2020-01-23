@@ -9,15 +9,16 @@ from choreography.group_step import GroupStep, StepResult
 
 
 class HideBall(GroupStep):
-    def __init__(self, game_interface: GameInterface):
+    def __init__(self, game_interface: GameInterface, z=3000):
         self.game_interface = game_interface
+        self.z = z
 
     def perform(self, packet, drones) -> StepResult:
         """
         Places the ball above the roof of the arena to keep it out of the way.
         """
         self.game_interface.set_game_state(GameState(ball=BallState(physics=Physics(
-            location=Vector3(0, 0, 3000),
+            location=Vector3(0, 0, self.z),
             velocity=Vector3(0, 0, 0),
             angular_velocity=Vector3(0, 0, 0)))))
         return StepResult(finished=True)
