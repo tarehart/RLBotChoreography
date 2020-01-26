@@ -2,6 +2,7 @@ from typing import Callable, List
 
 from rlbot.agents.base_agent import SimpleControllerState
 from rlbot.utils.structures.game_data_struct import GameTickPacket
+from rlbot.utils.structures.game_interface import GameInterface
 
 from choreography.choreography import ChoreographyBase
 from choreography.drone import Drone
@@ -86,6 +87,12 @@ class SubGroupChoreography(ChoreographyBase):
     def pre_step(self, packet: GameTickPacket, drones: List[Drone]):
         for drone in self.drones:  # Only reset your OWN drones.
             drone.reset_ctrl()
+
+
+class SubGroupChoreographySettable(SubGroupChoreography):
+    def __init__(self, game_interface: GameInterface, drones: List[Drone], start_time: float):
+        super().__init__(drones, start_time)
+        self.game_interface = game_interface
 
 
 class SubGroupOrchestrator(GroupStep):

@@ -102,7 +102,7 @@ class RLBotChoreography:
             VisualSettings(orange_looks, 1)
             ]
 
-        num_normal = 39  # Typically 39 or 48
+        num_normal = 55  # Typically 39 or 48
 
         alt_loadout_palette: List[VisualSettings] = [
             VisualSettings(dark_blue_looks, 0),

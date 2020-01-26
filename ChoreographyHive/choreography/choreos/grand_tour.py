@@ -7,9 +7,9 @@ from rlbot.utils.structures.game_interface import GameInterface
 
 from choreography.choreography import Choreography
 from choreography.common.preparation import LetAllCarsSpawn
-from choreography.drone import Drone
+from choreography.drone import Drone, slow_to_pos
 from choreography.group_step import BlindBehaviorStep, DroneListStep, StepResult, SubGroupChoreography, \
-    SubGroupOrchestrator, GroupStep
+    SubGroupOrchestrator, GroupStep, PerDroneStep
 from util.orientation import look_at_orientation
 from util.vec import Vec3
 
@@ -33,8 +33,10 @@ class CruiseFormation(SubGroupChoreography):
         self.sequence.append(BlindBehaviorStep(SimpleControllerState(throttle=-1.0, steer=1.0, boost=True), 0.2))
         self.sequence.append(BlindBehaviorStep(SimpleControllerState(throttle=1.0, steer=1.0, handbrake=True, boost=True), 0.749))
         self.sequence.append(BlindBehaviorStep(SimpleControllerState(throttle=1.0, boost=True), 0.5))
-        self.sequence.append(BlindBehaviorStep(SimpleControllerState(throttle=1.0, boost=True, steer=0.1), 0.7))
-        self.sequence.append(BlindBehaviorStep(SimpleControllerState(throttle=1.0, boost=True, steer=-0.1), 0.9))
+        # At this point, make sure we're straightened out
+        self.sequence.append(PerDroneStep(self.go_to_blue, 0.5))
+        self.sequence.append(BlindBehaviorStep(SimpleControllerState(throttle=1.0, boost=True, steer=0.1), 0.5))
+        self.sequence.append(BlindBehaviorStep(SimpleControllerState(throttle=1.0, boost=True, steer=-0.1), 0.6))
         self.sequence.append(BlindBehaviorStep(SimpleControllerState(jump=True, boost=True, roll=-1.0, yaw=1.0), 1))
         self.sequence.append(BlindBehaviorStep(SimpleControllerState(boost=True, pitch=0.6, yaw=-1.0), 0.2))
         self.sequence.append(BlindBehaviorStep(SimpleControllerState(throttle=1.0, boost=True), 0.3))
@@ -45,21 +47,31 @@ class CruiseFormation(SubGroupChoreography):
         self.sequence.append(BlindBehaviorStep(SimpleControllerState(throttle=1.0, boost=True), 2))
 
     def pose_drones(self, packet, drones, start_time) -> StepResult:
-        car_states = {}
-        drones_per_wing = 7
-        for index, drone in enumerate(drones):
-            wing = index // drones_per_wing
-            wing_index = index % drones_per_wing
-            rank = 0 if wing_index == 0 else (wing_index + 1) // 2
-            x_value = stagger(wing_index) * rank * 150
-            y_value = rank * -150 + wing * -300 - 4000
-            car_states[drone.index] = CarState(
-                Physics(location=Vector3(x_value, y_value, 40),
-                        velocity=Vector3(0, 0, 0),
-                        angular_velocity=Vector3(0, 0, 0),
-                        rotation=Rotator(0, math.pi / 2, 0)))
-        self.game_interface.set_game_state(GameState(cars=car_states))
+        pose_drones_in_cruise_formation(drones, self.game_interface)
         return StepResult(finished=True)
+
+    def go_to_blue(self, packet, drone: Drone, start_time):
+        slow_to_pos(drone, drone.pos + [0, -4000, 0])
+        drone.ctrl.boost = True
+        drone.ctrl.throttle = 1.0
+        return StepResult(finished=False)
+
+def pose_drones_in_cruise_formation(drones, game_interface):
+    car_states = {}
+    drones_per_wing = 7
+    for index, drone in enumerate(drones):
+        wing = index // drones_per_wing
+        wing_index = index % drones_per_wing
+        rank = 0 if wing_index == 0 else (wing_index + 1) // 2
+        x_value = stagger(wing_index) * rank * 150
+        y_value = rank * -150 + wing * -300 - 4000
+        car_states[drone.index] = CarState(
+            Physics(location=Vector3(x_value, y_value, 40),
+                    velocity=Vector3(0, 0, 0),
+                    angular_velocity=Vector3(0, 0, 0),
+                    rotation=Rotator(0, math.pi / 2, 0)))
+    game_interface.set_game_state(GameState(cars=car_states))
+
 
 class SoccerTunnelMember(SubGroupChoreography):
 
@@ -84,13 +96,13 @@ class LineUpSoccerTunnel(SubGroupChoreography):
 
     def line_up(self, packet, drones: List[Drone], start_time) -> StepResult:
         car_states = {}
-        for drone in drones:
-            x_value = stagger(drone.index) * 3500
+        for index, drone in enumerate(drones):
+            x_value = stagger(index) * 3500
             car_states[drone.index] = CarState(
-                Physics(location=Vector3(x_value, drone.index * 92 - 2000, 40),
+                Physics(location=Vector3(x_value, index * 92 - 896, 40),
                         velocity=Vector3(0, 0, 0),
                         angular_velocity=Vector3(0, 0, 0),
-                        rotation=Rotator(0, math.pi / 2 + stagger(drone.index) * math.pi / 2, 0)))
+                        rotation=Rotator(0, math.pi / 2 + stagger(index) * math.pi / 2, 0)))
         self.game_interface.set_game_state(GameState(cars=car_states))
         return StepResult(finished=True)
 

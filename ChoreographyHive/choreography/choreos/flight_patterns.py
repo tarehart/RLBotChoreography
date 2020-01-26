@@ -50,7 +50,7 @@ class SlipFlight(SubGroupChoreography):
             for i in range(len(drones))
         ]
 
-        for i in range(60):
+        for i in range(4):
             self.sequence.append(DroneListStep(self.arrange_in_grid))
 
         self.sequence.append(DroneListStep(self.flight_pattern))

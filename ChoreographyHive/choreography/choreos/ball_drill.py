@@ -193,6 +193,7 @@ class BallDrillChoreography(SubGroupChoreography):
         self.free_ball = False
         self.ball_release = 9
         self.radius = 300
+        self.drill_position = Vec3(0, 0, 1900)
 
     @staticmethod
     def get_num_bots():
@@ -219,8 +220,6 @@ class BallDrillChoreography(SubGroupChoreography):
         game_time = packet.game_info.seconds_elapsed
         elapsed_time = game_time - start_time
 
-        drill_position = Vec3(0, 0, 1900)
-
         car_states = {}
         radian_separation = math.pi * 2 / len(drones)
         radius_bonus = 1.4  # The way the bots move in practice makes the radius look too small, so compensate.
@@ -239,7 +238,9 @@ class BallDrillChoreography(SubGroupChoreography):
             else:
                 self.radius = 300 - bonus_time * 35
 
-        self.rotation_speed = 5 / self.radius + 0.03
+        self.rotation_speed = 5 / self.radius + 0.05
+        if elapsed_time > self.ball_release + 12:
+            self.drill_position += Vec3(0, 0, -0.5)
 
         ball_height = max(4000 - elapsed_time * 500, 1870)
 
@@ -252,9 +253,9 @@ class BallDrillChoreography(SubGroupChoreography):
             car_state = CarState(physics=Physics())
             car_state.physics.velocity = Vector3(0, 0, 0)  # TODO: motion toward next
             car_state.physics.location = Vector3(
-                drill_position.x + x_offset,
-                drill_position.y + y_offset,
-                drill_position.z)
+                self.drill_position.x + x_offset,
+                self.drill_position.y + y_offset,
+                self.drill_position.z)
             car_state.physics.rotation = Rotator(car_pitch, drone_rotation_amount, car_roll)
             car_states[drone.index] = car_state
             drone.ctrl.boost = elapsed_time > 5
@@ -264,7 +265,7 @@ class BallDrillChoreography(SubGroupChoreography):
         if not self.free_ball:
             if elapsed_time < self.ball_release:
                 ball_state = BallState(Physics(
-                    location=Vector3(drill_position.x, drill_position.y, ball_height)))
+                    location=Vector3(self.drill_position.x, self.drill_position.y, ball_height)))
             else:
                 self.free_ball = True
                 ball_state = BallState(Physics(

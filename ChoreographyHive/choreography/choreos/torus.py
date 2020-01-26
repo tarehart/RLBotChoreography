@@ -70,11 +70,13 @@ def circular_procession(packet, drones, start_time) -> StepResult:
     """
     radian_spacing = 2 * math.pi / len(drones)
     elapsed = packet.game_info.seconds_elapsed - start_time
-    radius = 3100 - elapsed * 10
+    radius = 600 + elapsed * 25
     for i, drone in enumerate(drones):
         progress = i * radian_spacing + elapsed * GROUND_PROCESSION_RATE
         target = [radius * math.sin(progress), radius * math.cos(progress), 0]
         slow_to_pos(drone, target)
+        drone.ctrl.boost = False
+        drone.ctrl.throttle = min(drone.ctrl.throttle, 0.5)
     return StepResult(finished=elapsed * GROUND_PROCESSION_RATE > 10 * math.pi)
 
 
@@ -115,7 +117,7 @@ class TorusSubChoreography(SubGroupChoreography):
         if len(drones) == 0:
             return
 
-        self.sequence.append(DroneListStep(self.arrange_in_ground_circle, self.time_offset))
+        # self.sequence.append(DroneListStep(self.arrange_in_ground_circle, self.time_offset))
         self.sequence.append(DroneListStep(circular_procession, self.time_offset))
         self.sequence.append(DroneListStep(self.torus_flight_pattern))
 
