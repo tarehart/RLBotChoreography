@@ -62,8 +62,10 @@ class HackSubgroup(SubGroupChoreography):
         self.aerials: List[Aerial] = []
         self.target_list = []
         self.prev_targets = []
+        self.prev_rotations = []
         self.center_of_rotation = np.array([0, 0, 0])
         self.translate_to = np.array([0, 0, 900])
+        self.rotation_amount = 0
 
 
     def generate_sequence(self, drones: List[Drone]):
@@ -86,8 +88,9 @@ class HackSubgroup(SubGroupChoreography):
         ]
 
         self.prev_targets = [np.array([0, 0, 0]) for i in range(len(self.target_list))]
+        self.prev_rotations = [Rotator(0, 0, 0) for i in range(len(self.target_list))]
 
-        for i in range(600):
+        for i in range(6):
             self.sequence.append(DroneListStep(self.arrange_in_grid))
 
         for i in range(8):
@@ -106,7 +109,7 @@ class HackSubgroup(SubGroupChoreography):
 
     def get_vel_rotation(self, vel: np.array, up: Vec3) -> Rotator:
         if norm(vel) == 0 or up.is_zero():
-            return Rotator(0, 0, 0)
+            return None
         orientation = look_at_orientation(Vec3(vel), up)
         return orientation.to_rotator()
 
@@ -131,22 +134,34 @@ class HackSubgroup(SubGroupChoreography):
     def flight_pattern(self, packet, drones: List[Drone], start_time) -> StepResult:
 
         elapsed = packet.game_info.seconds_elapsed - start_time
+        duration = 60
 
-        rot_vec = np.array([0, elapsed * 4, elapsed * 1])
+        rotation_speed = (-math.cos(elapsed) + 1) * 1.2 + 0.1
+        self.rotation_amount += rotation_speed * 0.01
+        rot_vec = np.array([0, self.rotation_amount * 3, self.rotation_amount])
         rotation = Rotation.from_rotvec(rot_vec)
+        scale = 0.5 * math.sin(elapsed * 2) + 1.5
+        scale_matrix = np.array([[scale, 0, 0], [0, scale, 0], [0, 0, scale]])
         car_states = {}
-        final_fling = elapsed > 3
+        final_fling = elapsed > duration
 
         for index, drone in enumerate(drones):
             drone.ctrl.boost = True
             spawn_loc = self.target_list[index]
-            loc = rotation.as_matrix().dot(spawn_loc - self.center_of_rotation) + self.center_of_rotation
+            loc = rotation.as_matrix().dot(spawn_loc - self.center_of_rotation).dot(scale_matrix) + self.center_of_rotation
             loc += self.translate_to
             prev = self.prev_targets[index]
             motion = loc - prev
             vel = motion / 0.02
 
-            state_rot = self.get_vel_rotation(vel, Vec3(rot_vec))
+            computed_rotation = self.get_vel_rotation(vel, Vec3(rot_vec))
+            if computed_rotation is not None:
+                state_rot = computed_rotation
+            else:
+                state_rot = self.prev_rotations[index]
+
+            # state_rot = Rotator(0, 0, 0)
+
             state_velocity = Vector3(0, 0, 0)
             if final_fling:
                 state_velocity = Vector3(vel[0], vel[1], vel[2])
@@ -158,9 +173,10 @@ class HackSubgroup(SubGroupChoreography):
                         rotation=state_rot))
 
             self.prev_targets[index] = loc
+            self.prev_rotations[index] = state_rot
         self.game_interface.set_game_state(GameState(cars=car_states))
 
-        return StepResult(finished=elapsed > 3)
+        return StepResult(finished=elapsed > duration)
 
 
 class HackPatterns(Choreography):

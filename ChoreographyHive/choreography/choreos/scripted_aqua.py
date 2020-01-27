@@ -121,7 +121,7 @@ class ScriptedAqua(Choreography):
         ] + [
             # DriveSomewhere(Vec3(1000, -4000, 0), drones[48:54], tunnel_end_time + 6),
             SlipFlight(self.game_interface, self.game_info, drones[0:48], firework_end_time),
-            TidyUp(self.game_interface, drones[39:], slip_end_time)
+            TidyUp(self.game_interface, drones[39:], slip_end_time + 2)
         ] + [
             TorusSubChoreography(self.game_interface, self.game_info, -i * torus_period / num_rings + 16,
                                  drones[i * drones_per_ring:(i + 1) * drones_per_ring], slip_end_time)
