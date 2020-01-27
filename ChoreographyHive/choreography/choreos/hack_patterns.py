@@ -16,7 +16,7 @@ from choreography.choreography import Choreography
 from choreography.common.preparation import LetAllCarsSpawn, HideBall
 from choreography.drone import Drone, slow_to_pos
 from choreography.group_step import BlindBehaviorStep, DroneListStep, StepResult, GroupStep, SubGroupChoreography, \
-    SubGroupOrchestrator
+    SubGroupOrchestrator, SubGroupChoreographySettable
 from util.orientation import look_at_orientation
 from util.vec import Vec3
 
@@ -52,24 +52,24 @@ class AerialToLocation(GroupStep):
 
         return StepResult(finished=packet.game_info.seconds_elapsed - self.start_time > self.duration)
 
-class HackSubgroup(SubGroupChoreography):
-    def __init__(self, game_interface: GameInterface, game_info: GameInfo, drones: List[Drone],
-                 start_time: float):
-        super().__init__(drones, start_time)
+class HackSubgroup(SubGroupChoreographySettable):
+
+    def __init__(self, game_interface: GameInterface, drones: List[Drone], start_time: float, arrange_time_limit: float):
+        super().__init__(game_interface, drones, start_time)
         self.game_interface = game_interface
         self.renderer = self.game_interface.renderer
-        self.game_info = game_info
-        self.aerials: List[Aerial] = []
         self.target_list = []
         self.prev_targets = []
         self.prev_rotations = []
+        self.prev_time = None
         self.center_of_rotation = np.array([0, 0, 0])
         self.translate_to = np.array([0, 0, 900])
         self.rotation_amount = 0
+        self.arrange_time_limit = arrange_time_limit
+        self.glide_start_points = []
 
 
     def generate_sequence(self, drones: List[Drone]):
-        self.aerials = []
 
         if len(drones) == 0:
             return
@@ -87,31 +87,66 @@ class HackSubgroup(SubGroupChoreography):
             for i in range(len(drones))
         ]
 
-        self.prev_targets = [np.array([0, 0, 0]) for i in range(len(self.target_list))]
+        self.prev_targets = [drones[i].pos for i in range(len(self.target_list))]
+        self.glide_start_points = [drones[i].pos for i in range(len(self.target_list))]
         self.prev_rotations = [Rotator(0, 0, 0) for i in range(len(self.target_list))]
 
-        for i in range(6):
-            self.sequence.append(DroneListStep(self.arrange_in_grid))
+        self.sequence.append(DroneListStep(self.glide_into_grid))
+        self.sequence.append(DroneListStep(self.flight_pattern))
 
-        for i in range(8):
-            self.sequence.append(DroneListStep(self.flight_pattern))
-            self.sequence.append(BlindBehaviorStep(SimpleControllerState(boost=True), 0.3))
-            self.sequence.append(BlindBehaviorStep(SimpleControllerState(), 0.05))
-        # self.sequence.append(DroneListStep(self.flight_pattern))
-        # self.sequence.append(AerialToLocation(self.game_info, Vec3(0, 4000, 1600), 5))
-        # self.sequence.append(DroneListStep(self.flight_pattern))
-        # self.sequence.append(AerialToLocation(self.game_info, Vec3(0, -4000, 1600), 5))
 
     def get_inward_rotation(self, index) -> Rotator:
         loc = self.target_list[index]
         orientation = look_at_orientation(Vec3(loc), Vec3(0, 0, 1))
-        return  orientation.to_rotator()
+        return orientation.to_rotator()
 
     def get_vel_rotation(self, vel: np.array, up: Vec3) -> Rotator:
         if norm(vel) == 0 or up.is_zero():
             return None
         orientation = look_at_orientation(Vec3(vel), up)
         return orientation.to_rotator()
+
+    def glide_into_grid(self, packet, drones, start_time) -> StepResult:
+        if len(drones) == 0 or len(self.target_list) < len(drones):
+            return StepResult(finished=True)
+
+        up_speed = 1000
+        elapsed = packet.game_info.seconds_elapsed - start_time
+        tick_time = 0.01
+        if self.prev_time:
+            tick_time = packet.game_info.seconds_elapsed - self.prev_time
+        self.prev_time = packet.game_info.seconds_elapsed
+        finished = True
+
+        car_states = {}
+
+        for index, drone in enumerate(drones):
+            target = self.target_list[index] + self.translate_to
+            to_target = target - self.prev_targets[index]
+
+            if norm(to_target) < 50:
+                # Set it to the final position
+                loc = target
+                computed_rotation = None
+            else:
+                if to_target[2] > 0:
+                    motion = np.array([0, 0, min(up_speed * tick_time, to_target[2])])
+                else:
+                    side_speed = norm(to_target) / (self.arrange_time_limit - elapsed)
+                    motion = (to_target / norm(to_target)) * side_speed * tick_time
+                loc = self.prev_targets[index] + motion
+                computed_rotation = self.get_vel_rotation(motion, Vec3(0, 0.001, 1))
+                drone.ctrl.boost = True
+                finished = False
+
+            car_states[drone.index] = CarState(
+                Physics(location=Vector3(loc[0], loc[1], loc[2]),
+                        velocity=Vector3(0, 0, 5),
+                        angular_velocity=Vector3(0, 0, 0),
+                        rotation=computed_rotation))
+            self.prev_targets[index] = loc
+        self.game_interface.set_game_state(GameState(cars=car_states))
+        return StepResult(finished=finished or elapsed > self.arrange_time_limit)
 
     def arrange_in_grid(self, packet, drones, start_time) -> StepResult:
         if len(drones) == 0 or len(self.target_list) < len(drones):
@@ -134,7 +169,7 @@ class HackSubgroup(SubGroupChoreography):
     def flight_pattern(self, packet, drones: List[Drone], start_time) -> StepResult:
 
         elapsed = packet.game_info.seconds_elapsed - start_time
-        duration = 60
+        duration = 90
 
         rotation_speed = (-math.cos(elapsed) + 1) * 1.2 + 0.1
         self.rotation_amount += rotation_speed * 0.01
@@ -205,5 +240,5 @@ class HackPatterns(Choreography):
         self.sequence.append(LetAllCarsSpawn(self.game_interface, self.get_num_bots()))
 
         self.sequence.append(SubGroupOrchestrator(group_list=[
-            HackSubgroup(self.game_interface, self.game_info, drones, 0)
+            HackSubgroup(self.game_interface, drones, 0)
         ]))

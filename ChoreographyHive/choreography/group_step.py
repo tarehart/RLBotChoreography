@@ -96,12 +96,13 @@ class SubGroupChoreographySettable(SubGroupChoreography):
 
 
 class SubGroupOrchestrator(GroupStep):
-    def __init__(self, group_list: List[SubGroupChoreography]):
+    def __init__(self, group_list: List[SubGroupChoreography], max_duration = None):
         self.group_list = group_list
         self.active_groups: List[SubGroupChoreography] = []
         self.completed = False
         self.group_list.sort(key=lambda x: x.start_time)
         self.start_time = None
+        self.max_duration = max_duration
 
     def update(self, current_time):
         if not self.start_time:
@@ -113,6 +114,10 @@ class SubGroupOrchestrator(GroupStep):
         self.active_groups = [g for g in self.active_groups if not g.finished]
         num_consumed = 0
         elapsed_time = current_time - self.start_time
+        if self.max_duration is not None and elapsed_time > self.max_duration:
+            self.completed = True
+            return
+
         for candidate in self.group_list:
             if candidate.start_time > elapsed_time:
                 break

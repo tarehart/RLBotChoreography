@@ -7,7 +7,7 @@ from rlbot.utils.structures.game_interface import GameInterface
 from choreography.choreography import Choreography
 from choreography.common.preparation import LetAllCarsSpawn, HideBall
 from choreography.drone import Drone
-from choreography.group_step import DroneListStep, StepResult
+from choreography.group_step import DroneListStep, StepResult, SubGroupChoreographySettable, SubGroupOrchestrator
 from cnc.cnc_instructions import BotCnc, CncExtruder, VelocityAlignedExtruder
 from util.vec import Vec3
 
@@ -64,12 +64,14 @@ class MooreCurve:
 
 class MooreCurveChoreo(Choreography):
 
-    def __init__(self, game_interface: GameInterface):
+    def __init__(self, game_interface):
         super().__init__()
         self.game_interface = game_interface
-        self.time_between_cars = 0.75
-        self.moore_curve = MooreCurve(extent=2000, speed=1300)
-        self.cnc_extruders: List[CncExtruder] = []
+
+    def generate_sequence(self, drones: List[Drone]):
+        self.sequence.append(HideBall(self.game_interface, -400))
+        self.sequence.append(LetAllCarsSpawn(self.game_interface, self.get_num_bots()))
+        self.sequence.append(SubGroupOrchestrator([MooreCurveSubgroup(self.game_interface, drones, 0)]))
 
     def pre_step(self, packet: GameTickPacket, drones: List[Drone]):
         pass  # Allow drones to maintain their controls state.
@@ -78,14 +80,25 @@ class MooreCurveChoreo(Choreography):
     def get_num_bots():
         return 64
 
-    def generate_sequence(self, drones: List[Drone]):
+class MooreCurveSubgroup(SubGroupChoreographySettable):
 
+    def __init__(self, game_interface: GameInterface, drones: List[Drone], start_time: float, speed=1300, fast_forward=0):
+        super().__init__(game_interface, drones, start_time)
+        self.game_interface = game_interface
+        self.time_between_cars = 0.75 * (1300 / speed) * (64 / len(drones))
+        self.moore_curve = MooreCurve(extent=2000, speed=speed)
+        self.cnc_extruders: List[CncExtruder] = []
+        self.fast_forward = fast_forward
+        self.cnc_started = False
+
+    def pre_step(self, packet: GameTickPacket, drones: List[Drone]):
+        pass  # Allow drones to maintain their controls state.
+
+    def generate_sequence(self, drones: List[Drone]):
+        self.sequence.clear()
+        self.cnc_extruders.clear()
         for drone in drones:
             self.cnc_extruders.append(VelocityAlignedExtruder([drone], self.moore_curve.bot_cnc))
-
-        self.sequence.clear()
-        self.sequence.append(HideBall(self.game_interface, -400))
-        self.sequence.append(LetAllCarsSpawn(self.game_interface, self.get_num_bots()))
         self.sequence.append(DroneListStep(self.run_cnc))
 
     def run_cnc(self, packet: GameTickPacket, drones: List[Drone], start_time) -> StepResult:
@@ -93,10 +106,18 @@ class MooreCurveChoreo(Choreography):
         elapsed = game_time - start_time
         car_states = {}
         finished = True
+
+        if not self.cnc_started:
+            for i, extruder in enumerate(self.cnc_extruders):
+                ffwd = self.fast_forward - i * self.time_between_cars
+                if ffwd > 0:
+                    extruder.fast_forward(game_time, ffwd)
+            self.cnc_started = True
+
         for i, extruder in enumerate(self.cnc_extruders):
             if extruder.is_finished():
                 extruder.restart()
-            if i * self.time_between_cars <= elapsed and not extruder.is_finished():
+            if i * self.time_between_cars <= elapsed + self.fast_forward and not extruder.is_finished():
                 instruction_result = extruder.manipulate_drones(game_time)
                 if instruction_result.car_states:
                     car_states.update(instruction_result.car_states)

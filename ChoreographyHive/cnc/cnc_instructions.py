@@ -145,6 +145,33 @@ class CncExtruder:
         int, CarState]:
         raise NotImplementedError
 
+    def fast_forward(self, game_time, elapsed_time):
+        remaining_time = elapsed_time
+        while True:
+            step = self.bot_cnc.list[self.step_index]
+
+            if step.drone_action:
+                for drone in self.drones:
+                    step.drone_action(drone)
+
+            if step.begins_path:
+                self.distance_on_current_path_from_prior_segments = 0
+
+            if step.ends_path:
+                self.path_index += 1
+
+            if step.motion_track:
+                if remaining_time > step.motion_track.total_time:
+                    remaining_time -= step.motion_track.total_time
+                else:
+                    self.step_start_time = game_time - remaining_time
+                    break
+
+            self.step_index += 1
+            self.step_start_time = None
+
+        return InstructionResult(self.is_finished(), {})
+
     def manipulate_drones(self, game_time: float) -> InstructionResult:
         step = self.bot_cnc.list[self.step_index]
         step_finished = True
