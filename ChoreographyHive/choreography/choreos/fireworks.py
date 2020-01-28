@@ -59,19 +59,30 @@ class BigFireworkPrep(SubGroupChoreography):
         self.duration = duration
 
     def generate_sequence(self, drones: List[Drone]):
-        self.sequence.append(DroneListStep(self.circle_for_firework))
+        self.sequence.append(DroneListStep(self.shrinking_circle))
 
-    def circle_for_firework(self, packet, drones, start_time) -> StepResult:
+    def shrinking_circle(self, packet, drones, start_time):
         radian_spacing = 2 * math.pi / len(drones)
         elapsed = packet.game_info.seconds_elapsed - start_time
+        radius = 3500 - elapsed * 3000 / self.duration
 
-        for i, drone in enumerate(drones):
-            progress = i * radian_spacing + elapsed * GROUND_PROCESSION_RATE
-            target = [self.radius * math.sin(progress), self.radius * math.cos(progress), 0]
+        for index, drone in enumerate(drones):
+            progress = index * radian_spacing
+            target = [radius * math.sin(progress), radius * math.cos(progress), 0]
             slow_to_pos(drone, target)
-            drone.ctrl.boost = False
-            # drone.ctrl.throttle = min(drone.ctrl.throttle, 0.3)
         return StepResult(finished=elapsed > self.duration)
+
+    # def circle_for_firework(self, packet, drones, start_time) -> StepResult:
+    #     radian_spacing = 2 * math.pi / len(drones)
+    #     elapsed = packet.game_info.seconds_elapsed - start_time
+    #
+    #     for i, drone in enumerate(drones):
+    #         progress = i * radian_spacing + elapsed * GROUND_PROCESSION_RATE
+    #         target = [self.radius * math.sin(progress), self.radius * math.cos(progress), 0]
+    #         slow_to_pos(drone, target)
+    #         drone.ctrl.boost = False
+    #         # drone.ctrl.throttle = min(drone.ctrl.throttle, 0.3)
+    #     return StepResult(finished=elapsed > self.duration)
 
 def get_big_firework_radius(num_drones: int):
     return num_drones * 100 / 6
@@ -146,11 +157,12 @@ class FireworkSubChoreography(SubGroupChoreography):
 
         car_states = {}
         per_ring = min(24, len(drones))
+        num_rings = 1 + (len(drones) - 1) // 24
         radian_spacing = 2 * math.pi / len(drones)
         radius = 100 if per_ring == 6 else 650
 
         for index, drone in enumerate(drones):
-            ring_num = index % 2
+            ring_num = index % num_rings
             progress = index * radian_spacing
             radial_offset = Vec3(radius * math.sin(progress), radius * math.cos(progress), 0)
             target = self.start_position + radial_offset

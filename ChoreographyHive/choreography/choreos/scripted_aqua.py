@@ -94,11 +94,11 @@ class ScriptedAqua(Choreography):
             CruiseFormation(game_interface=self.game_interface, drones=drones[:12], start_time=pose_duration),
             LineUpSoccerTunnel(drones=drones[12:48], start_time=0, game_interface=self.game_interface),
             FastFly(game_interface=self.game_interface, drones=[drones[12], drones[15], drones[18], drones[21]],
-                    start_time=pose_duration + 4.2, location=Vec3(-2500, 0, 200), direction=Vec3(1000, 300, 500)),
+                    start_time=pose_duration + 4.2, location=Vec3(-2500, -1800, 200), direction=Vec3(1000, 300, 500)),
             FastFly(game_interface=self.game_interface, drones=[drones[13], drones[16], drones[19], drones[22]],
-                    start_time=pose_duration + 4.5, location=Vec3(2500, 900, 200), direction=Vec3(-1000, 300, 500)),
+                    start_time=pose_duration + 4.5, location=Vec3(2500, -900, 200), direction=Vec3(-1000, 300, 500)),
             FastFly(game_interface=self.game_interface, drones=[drones[14], drones[17], drones[20], drones[23]],
-                    start_time=pose_duration + 4.8, location=Vec3(-2500, 1800, 200), direction=Vec3(1000, 300, 500))
+                    start_time=pose_duration + 4.8, location=Vec3(-2500, 0, 200), direction=Vec3(1000, 300, 500))
         ] + [
             SoccerTunnelMember([drones[i + 12]], i * .032 + pose_duration) for i in range(36)
         ] + [
@@ -106,8 +106,8 @@ class ScriptedAqua(Choreography):
                                     drones[n * drones_per_missile + 12: (n + 1) * drones_per_missile + 12], tunnel_end_time, False)
             for n in range(6)
         ] + [
-            BigFireworkPrep(drones[:48], mini_firework_end_time, 6),
-            FireworkSubChoreography(self.game_interface, self.game_info, 0, Vec3(0, 0, 50), drones[:48], mini_firework_end_time + 5, True)
+            BigFireworkPrep(drones[:48], mini_firework_end_time, 7),
+            FireworkSubChoreography(self.game_interface, self.game_info, 0, Vec3(0, 0, 50), drones[:48], mini_firework_end_time + 7, True)
         ]
 
         self.sequence.append(SubGroupOrchestrator(group_list=group_list))

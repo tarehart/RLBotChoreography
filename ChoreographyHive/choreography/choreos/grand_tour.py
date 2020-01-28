@@ -135,7 +135,7 @@ class FastFly(SubGroupChoreography):
                         angular_velocity=Vector3(0, 0, 0),
                         rotation=orientation.to_rotator()))
         self.game_interface.set_game_state(GameState(cars=car_states))
-        return StepResult(finished=True)
+        return StepResult(finished=packet.game_info.seconds_elapsed - start_time > 1)
 
 
 class GrandTourChoreography(Choreography):
