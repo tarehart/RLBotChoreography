@@ -21,18 +21,6 @@ from choreography.group_step import BlindBehaviorStep, DroneListStep, StepResult
 from util.orientation import look_at_orientation
 from util.vec import Vec3
 
-BASE_CAR_Z = 17
-
-
-
-class CruisePose(SubGroupChoreographySettable):
-
-    def generate_sequence(self, drones: List[Drone]):
-        self.sequence.append(DroneListStep(self.pose_drones))
-
-    def pose_drones(self, packet, drones, start_time) -> StepResult:
-        pose_drones_in_cruise_formation(drones, self.game_interface)
-        return StepResult(finished=True)
 
 class DriveSomewhere(SubGroupChoreography):
     def __init__(self, target: Vec3, drones: List[Drone], start_time: float):
@@ -53,7 +41,6 @@ class TidyUp(SubGroupChoreographySettable):
 
     def tidy(self, packet, drones, start_time) -> StepResult:
         car_states = {}
-        drones_per_wing = 7
         for index, drone in enumerate(drones):
             car_states[drone.index] = CarState(
                 Physics(location=Vector3(-4000, -4000 + drone.index * 100, 40),
@@ -64,7 +51,7 @@ class TidyUp(SubGroupChoreographySettable):
         return StepResult(finished=True)
 
 
-class ScriptedAqua(Choreography):
+class ScriptedAquaPart2(Choreography):
 
     def __init__(self, game_interface: GameInterface):
         super().__init__()
@@ -87,33 +74,34 @@ class ScriptedAqua(Choreography):
         if len(drones) < self.get_num_bots():
             return
 
-        pose_duration = 6
-        tunnel_end_time = pose_duration + 9
-        firework_end_time = tunnel_end_time + 6
-        drones_per_missile = 6
+
+        num_rings = 13
+        torus_period = 2 * math.pi / TORUS_RATE
+        drones_per_ring = 3
+
+        slip_end_time = 14
+        drill_moment = slip_end_time + 95
+
+        ball_drill = BallDrillChoreography(self.game_interface, drones[39:49], drill_moment)
 
         # Aqua pt 1: mini fireworks, then drive toward big firework starting position, then launch big firework
         # Fireworks interlude using replays coleman already has
         # Aqua pt 2: Flying grid, replay starts with grid hovering, then *timed* with when last firework will go off in
         # its replay, grid starts moving about 1 second after the explosion. Proceed to torus as normal.
+        # Explosion happens at about 8 seconds, so aim for flight beginning at 9 seconds
 
         group_list = [
-            CruisePose(game_interface=self.game_interface, drones=drones[:12], start_time=0),
-            CruiseFormation(game_interface=self.game_interface, drones=drones[:12], start_time=pose_duration),
-            LineUpSoccerTunnel(drones=drones[12:48], start_time=pose_duration, game_interface=self.game_interface),
-            FastFly(game_interface=self.game_interface, drones=[drones[12], drones[15], drones[18], drones[21]],
-                    start_time=pose_duration + 4.2, location=Vec3(-2500, 0, 200), direction=Vec3(1000, 300, 500)),
-            FastFly(game_interface=self.game_interface, drones=[drones[13], drones[16], drones[19], drones[22]],
-                    start_time=pose_duration + 4.5, location=Vec3(2500, 900, 200), direction=Vec3(-1000, 300, 500)),
-            FastFly(game_interface=self.game_interface, drones=[drones[14], drones[17], drones[20], drones[23]],
-                    start_time=pose_duration + 4.8, location=Vec3(-2500, 1800, 200), direction=Vec3(1000, 300, 500))
+            # DriveSomewhere(Vec3(1000, -4000, 0), drones[48:54], tunnel_end_time + 6),
+            SlipFlight(self.game_interface, self.game_info, drones[0:48], start_time=0, arrange_time=6),
+            TidyUp(self.game_interface, drones[39:], slip_end_time - 0.5)
         ] + [
-            SoccerTunnelMember([drones[i + 12]], i * .032 + pose_duration) for i in range(36)
+            TorusSubChoreography(self.game_interface, self.game_info, -i * torus_period / num_rings + 16,
+                                 drones[i * drones_per_ring:(i + 1) * drones_per_ring], slip_end_time)
+            for i in range(0, num_rings)
         ] + [
-            FireworkSubChoreography(self.game_interface, self.game_info, n * .5, Vec3(2000, n * 1000 - 3000, 50),
-                                    drones[n * drones_per_missile + 19: (n + 1) * drones_per_missile + 19], tunnel_end_time, False)
-            for n in range(6)
-        ]  # TODO: Drive toward and perform big firework
+            BallDrillChoreography(self.game_interface, drones[55:64], drill_moment),
+            AimBotSubgroup(self.game_interface, drones[0:39], drill_moment + ball_drill.ball_release + 0.05)
+        ]
 
         self.sequence.append(SubGroupOrchestrator(group_list=group_list))
 

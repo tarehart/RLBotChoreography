@@ -23,7 +23,7 @@ BASE_CAR_Z = 17
 
 class SlipFlight(SubGroupChoreography):
     def __init__(self, game_interface: GameInterface, game_info: GameInfo, drones: List[Drone],
-                 start_time: float):
+                 start_time: float, arrange_time: float):
         super().__init__(drones, start_time)
         self.game_interface = game_interface
         self.renderer = self.game_interface.renderer
@@ -31,6 +31,7 @@ class SlipFlight(SubGroupChoreography):
         self.aerials: List[Aerial] = []
         self.target_list = []
         self.center_of_rotation = np.array([0, -3000, 800])
+        self.arrange_time = arrange_time
 
 
     def generate_sequence(self, drones: List[Drone]):
@@ -50,9 +51,7 @@ class SlipFlight(SubGroupChoreography):
             for i in range(len(drones))
         ]
 
-        for i in range(4):
-            self.sequence.append(DroneListStep(self.arrange_in_grid))
-
+        self.sequence.append(DroneListStep(self.arrange_in_grid))
         self.sequence.append(DroneListStep(self.flight_pattern))
 
     def arrange_in_grid(self, packet, drones, start_time) -> StepResult:
@@ -60,17 +59,18 @@ class SlipFlight(SubGroupChoreography):
             return StepResult(finished=True)
 
         car_states = {}
+        elapsed = packet.game_info.seconds_elapsed - start_time
 
         for index, drone in enumerate(drones):
-            loc = self.target_list[index]
+            loc = self.target_list[index] + np.array([0, 0, 5 * elapsed])
 
             car_states[drone.index] = CarState(
                 Physics(location=Vector3(loc[0], loc[1], loc[2]),
-                        velocity=Vector3(0, 0, 400),
-                        angular_velocity=Vector3(0, 0, 0),
-                        rotation=Rotator(math.pi / 2, 0, 0)))
+                        velocity=Vector3(0, 0, 150),
+                        angular_velocity=Vector3(0, 0, 5),
+                        rotation=Rotator(math.pi / 2, 0, elapsed * (index % 3 + 1) * math.pi)))
         self.game_interface.set_game_state(GameState(cars=car_states))
-        return StepResult(finished=True)
+        return StepResult(finished=elapsed > self.arrange_time)
 
     def flight_pattern(self, packet, drones: List[Drone], start_time) -> StepResult:
 
@@ -139,5 +139,5 @@ class FlightPatterns(Choreography):
         self.sequence.append(LetAllCarsSpawn(self.game_interface, self.get_num_bots()))
 
         self.sequence.append(SubGroupOrchestrator(group_list=[
-            SlipFlight(self.game_interface, self.game_info, drones, 0)
+            SlipFlight(self.game_interface, self.game_info, drones, 0, arrange_time=1)
         ]))

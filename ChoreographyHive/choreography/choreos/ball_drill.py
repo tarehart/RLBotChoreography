@@ -238,7 +238,7 @@ class BallDrillChoreography(SubGroupChoreography):
             else:
                 self.radius = 300 - bonus_time * 35
 
-        self.rotation_speed = 5 / self.radius + 0.05
+        self.rotation_speed = 5 / self.radius + 0.04
         if elapsed_time > self.ball_release + 12:
             self.drill_position += Vec3(0, 0, -0.5)
 

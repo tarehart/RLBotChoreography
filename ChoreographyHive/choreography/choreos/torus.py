@@ -76,7 +76,7 @@ def circular_procession(packet, drones, start_time) -> StepResult:
         target = [radius * math.sin(progress), radius * math.cos(progress), 0]
         slow_to_pos(drone, target)
         drone.ctrl.boost = False
-        drone.ctrl.throttle = min(drone.ctrl.throttle, 0.5)
+        drone.ctrl.throttle = min(drone.ctrl.throttle, 0.3)
     return StepResult(finished=elapsed * GROUND_PROCESSION_RATE > 10 * math.pi)
 
 
