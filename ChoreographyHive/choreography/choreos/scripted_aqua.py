@@ -9,11 +9,11 @@ from rlbot.utils.structures.game_interface import GameInterface
 
 from choreography.choreography import Choreography
 from choreography.choreos.ball_drill import BallDrillChoreography, AimBotSubgroup
-from choreography.choreos.fireworks import FireworkSubChoreography
+from choreography.choreos.fireworks import FireworkSubChoreography, BigFireworkPrep, TapBallOnCarStep
 from choreography.choreos.flight_patterns import SlipFlight
 from choreography.choreos.grand_tour import CruiseFormation, LineUpSoccerTunnel, FastFly, SoccerTunnelMember, \
     pose_drones_in_cruise_formation
-from choreography.choreos.torus import TorusSubChoreography, TORUS_RATE
+from choreography.choreos.torus import TorusSubChoreography, TORUS_RATE, circular_procession, GROUND_PROCESSION_RATE
 from choreography.common.preparation import LetAllCarsSpawn, HideBall
 from choreography.drone import Drone, slow_to_pos
 from choreography.group_step import BlindBehaviorStep, DroneListStep, StepResult, SubGroupChoreography, \
@@ -33,18 +33,6 @@ class CruisePose(SubGroupChoreographySettable):
     def pose_drones(self, packet, drones, start_time) -> StepResult:
         pose_drones_in_cruise_formation(drones, self.game_interface)
         return StepResult(finished=True)
-
-class DriveSomewhere(SubGroupChoreography):
-    def __init__(self, target: Vec3, drones: List[Drone], start_time: float):
-        super().__init__(drones, start_time)
-        self.target = target
-
-    def generate_sequence(self, drones: List[Drone]):
-        self.sequence.append(PerDroneStep(self.get_drivin, 10))
-
-    def get_drivin(self, packet, drone, start_time) -> StepResult:
-        slow_to_pos(drone, [self.target.x, self.target.y, self.target.z])
-        return StepResult(finished=Vec3(drone.pos).dist(self.target) < 100)
 
 class TidyUp(SubGroupChoreographySettable):
 
@@ -73,7 +61,7 @@ class ScriptedAqua(Choreography):
 
     @staticmethod
     def get_num_bots():
-        return 64
+        return 48
 
     def pre_step(self, packet: GameTickPacket, drones: List[Drone]):
         self.game_info.read_packet(packet)
@@ -82,14 +70,18 @@ class ScriptedAqua(Choreography):
         self.sequence.clear()
 
         self.sequence.append(LetAllCarsSpawn(self.game_interface, self.get_num_bots()))
-        self.sequence.append(HideBall(self.game_interface))
 
         if len(drones) < self.get_num_bots():
             return
 
+        self.sequence.append(DroneListStep(self.line_up_spaced))
+        self.sequence.append(BlindBehaviorStep(SimpleControllerState(), 1))
+        self.sequence.append(TapBallOnCarStep(self.game_interface, drones[0]))
+        self.sequence.append(HideBall(self.game_interface, z=-1000))
+
         pose_duration = 6
         tunnel_end_time = pose_duration + 9
-        firework_end_time = tunnel_end_time + 6
+        mini_firework_end_time = tunnel_end_time + 6
         drones_per_missile = 6
 
         # Aqua pt 1: mini fireworks, then drive toward big firework starting position, then launch big firework
@@ -100,7 +92,7 @@ class ScriptedAqua(Choreography):
         group_list = [
             CruisePose(game_interface=self.game_interface, drones=drones[:12], start_time=0),
             CruiseFormation(game_interface=self.game_interface, drones=drones[:12], start_time=pose_duration),
-            LineUpSoccerTunnel(drones=drones[12:48], start_time=pose_duration, game_interface=self.game_interface),
+            LineUpSoccerTunnel(drones=drones[12:48], start_time=0, game_interface=self.game_interface),
             FastFly(game_interface=self.game_interface, drones=[drones[12], drones[15], drones[18], drones[21]],
                     start_time=pose_duration + 4.2, location=Vec3(-2500, 0, 200), direction=Vec3(1000, 300, 500)),
             FastFly(game_interface=self.game_interface, drones=[drones[13], drones[16], drones[19], drones[22]],
@@ -111,9 +103,27 @@ class ScriptedAqua(Choreography):
             SoccerTunnelMember([drones[i + 12]], i * .032 + pose_duration) for i in range(36)
         ] + [
             FireworkSubChoreography(self.game_interface, self.game_info, n * .5, Vec3(2000, n * 1000 - 3000, 50),
-                                    drones[n * drones_per_missile + 19: (n + 1) * drones_per_missile + 19], tunnel_end_time, False)
+                                    drones[n * drones_per_missile + 12: (n + 1) * drones_per_missile + 12], tunnel_end_time, False)
             for n in range(6)
-        ]  # TODO: Drive toward and perform big firework
+        ] + [
+            BigFireworkPrep(drones[:48], mini_firework_end_time, 6),
+            FireworkSubChoreography(self.game_interface, self.game_info, 0, Vec3(0, 0, 50), drones[:48], mini_firework_end_time + 5, True)
+        ]
 
         self.sequence.append(SubGroupOrchestrator(group_list=group_list))
 
+    def line_up_spaced(self, packet, drones, start_time) -> StepResult:
+        num_to_line_up = 10
+        start_x = -2000
+        y_increment = 200
+        start_y = -num_to_line_up * y_increment / 2
+        start_z = 40
+        car_states = {}
+        for i in range(num_to_line_up):
+            drone = drones[i]
+            car_states[drone.index] = CarState(
+                Physics(location=Vector3(start_x, start_y + drone.index * y_increment, start_z),
+                        velocity=Vector3(0, 0, 0),
+                        rotation=Rotator(0, 0, 0)))
+        self.game_interface.set_game_state(GameState(cars=car_states))
+        return StepResult(finished=True)

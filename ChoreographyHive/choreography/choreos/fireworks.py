@@ -10,6 +10,7 @@ from rlbot.utils.structures.game_data_struct import GameTickPacket
 from rlbot.utils.structures.game_interface import GameInterface
 
 from choreography.choreography import Choreography
+from choreography.choreos.torus import GROUND_PROCESSION_RATE
 from choreography.common.preparation import LetAllCarsSpawn
 from choreography.drone import Drone, slow_to_pos
 from choreography.group_step import BlindBehaviorStep, DroneListStep, StepResult, GroupStep, SubGroupOrchestrator, \
@@ -50,6 +51,31 @@ class ExplodeBall(GroupStep):
             elapsed_time = packet.game_info.seconds_elapsed - self.start_time
             return StepResult(finished=packet.game_info.is_round_active and elapsed_time > 1)
 
+
+class BigFireworkPrep(SubGroupChoreography):
+    def __init__(self, drones: List[Drone], start_time: float, duration: float):
+        super().__init__(drones, start_time)
+        self.radius = 1200
+        self.duration = duration
+
+    def generate_sequence(self, drones: List[Drone]):
+        self.sequence.append(DroneListStep(self.circle_for_firework))
+
+    def circle_for_firework(self, packet, drones, start_time) -> StepResult:
+        radian_spacing = 2 * math.pi / len(drones)
+        elapsed = packet.game_info.seconds_elapsed - start_time
+
+        for i, drone in enumerate(drones):
+            progress = i * radian_spacing + elapsed * GROUND_PROCESSION_RATE
+            target = [self.radius * math.sin(progress), self.radius * math.cos(progress), 0]
+            slow_to_pos(drone, target)
+            drone.ctrl.boost = False
+            # drone.ctrl.throttle = min(drone.ctrl.throttle, 0.3)
+        return StepResult(finished=elapsed > self.duration)
+
+def get_big_firework_radius(num_drones: int):
+    return num_drones * 100 / 6
+
 class FireworkSubChoreography(SubGroupChoreography):
 
     def __init__(self, game_interface: GameInterface, game_info: GameInfo, time_offset: float, start_position: Vec3,
@@ -63,6 +89,7 @@ class FireworkSubChoreography(SubGroupChoreography):
         self.previous_seconds_elapsed = 0
         self.start_position = start_position
         self.use_goal_explosion = use_goal_explosion
+        self.radius = get_big_firework_radius(len(drones))
 
     def generate_sequence(self, drones: List[Drone]):
         self.aerials = []
@@ -99,11 +126,10 @@ class FireworkSubChoreography(SubGroupChoreography):
 
         car_states = {}
         radian_spacing = 2 * math.pi / len(drones)
-        radius = len(drones) * 100 / 6
 
         for index, drone in enumerate(drones):
             progress = index * radian_spacing
-            radial_offset = Vec3(radius * math.sin(progress), radius * math.cos(progress), 0)
+            radial_offset = Vec3(self.radius * math.sin(progress), self.radius * math.cos(progress), 0)
             target = self.start_position + radial_offset
 
             car_states[drone.index] = CarState(
@@ -120,12 +146,12 @@ class FireworkSubChoreography(SubGroupChoreography):
 
         car_states = {}
         per_ring = min(24, len(drones))
-        radian_spacing = 2 * math.pi / per_ring
+        radian_spacing = 2 * math.pi / len(drones)
         radius = 100 if per_ring == 6 else 650
 
         for index, drone in enumerate(drones):
-            ring_num = index // per_ring
-            progress = (index % per_ring + ring_num * 0.5) * radian_spacing
+            ring_num = index % 2
+            progress = index * radian_spacing
             radial_offset = Vec3(radius * math.sin(progress), radius * math.cos(progress), 0)
             target = self.start_position + radial_offset
 

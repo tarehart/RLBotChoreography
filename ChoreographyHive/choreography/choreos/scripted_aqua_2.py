@@ -60,7 +60,7 @@ class ScriptedAquaPart2(Choreography):
 
     @staticmethod
     def get_num_bots():
-        return 64
+        return 57
 
     def pre_step(self, packet: GameTickPacket, drones: List[Drone]):
         self.game_info.read_packet(packet)
@@ -99,7 +99,7 @@ class ScriptedAquaPart2(Choreography):
                                  drones[i * drones_per_ring:(i + 1) * drones_per_ring], slip_end_time)
             for i in range(0, num_rings)
         ] + [
-            BallDrillChoreography(self.game_interface, drones[55:64], drill_moment),
+            BallDrillChoreography(self.game_interface, drones[48:57], drill_moment),
             AimBotSubgroup(self.game_interface, drones[0:39], drill_moment + ball_drill.ball_release + 0.05)
         ]
 
