@@ -69,7 +69,7 @@ class ScriptedAquaPart2(Choreography):
         self.sequence.clear()
 
         self.sequence.append(LetAllCarsSpawn(self.game_interface, self.get_num_bots()))
-        self.sequence.append(HideBall(self.game_interface))
+        self.sequence.append(HideBall(self.game_interface, -1000))
 
         if len(drones) < self.get_num_bots():
             return

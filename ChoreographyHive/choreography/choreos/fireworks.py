@@ -171,6 +171,7 @@ class FireworkSubChoreography(SubGroupChoreography):
             car_states[drone.index] = CarState(
                 Physics(location=Vector3(target.x, target.y, 100 + ring_num * 160),
                         velocity=Vector3(0, 0, 1000),
+                        angular_velocity=Vector3(0, 0, 0),
                         rotation=Rotator(math.pi / 2, 0, progress + math.pi / 2)))
         self.game_interface.set_game_state(GameState(cars=car_states))
         return StepResult(finished=True)
