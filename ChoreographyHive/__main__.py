@@ -79,6 +79,7 @@ class RLBotChoreography:
 
         blue_yellow_loadout_file = create_looks_configurations().parse_file(os.path.join(base_path, 'appearance-blue-yellow.cfg'))
         red_blue_loadout_file = create_looks_configurations().parse_file(os.path.join(base_path, 'appearance-red-blue.cfg'))
+        intro_loadout_file = create_looks_configurations().parse_file(os.path.join(base_path, 'appearance-intro.cfg'))
 
 
         blue_looks = load_bot_appearance(primary_loadout_file, 0)
@@ -88,6 +89,9 @@ class RLBotChoreography:
         red_looks = load_bot_appearance(red_blue_loadout_file, 1)
         dark_blue_looks = load_bot_appearance(blue_yellow_loadout_file, 0)
         yellow_looks = load_bot_appearance(blue_yellow_loadout_file, 1)
+
+        blue_intro_looks = load_bot_appearance(intro_loadout_file, 0)
+        red_intro_looks = load_bot_appearance(intro_loadout_file, 1)
 
         # 36   - flamethrower
         # 37   - flamethrower blue
@@ -108,6 +112,11 @@ class RLBotChoreography:
             VisualSettings(dark_blue_looks, 0),
             VisualSettings(yellow_looks, 1),
             VisualSettings(red_looks, 1)
+        ]
+
+        intro_loadout_palette: List[VisualSettings] = [
+            VisualSettings(blue_intro_looks, 0),
+            VisualSettings(red_intro_looks, 1),
         ]
 
         goal_explosion_palette = [
@@ -134,7 +143,7 @@ class RLBotChoreography:
             if i >= num_normal:
                 special_loadout = alt_loadout_palette[i % len(loadout_palette)]
             else:
-                special_loadout = loadout_palette[i % len(loadout_palette)]
+                special_loadout = intro_loadout_palette[i % len(intro_loadout_palette)]
             copied.loadout_config = copy.deepcopy(special_loadout.loadout)
             copied.loadout_config.goal_explosion_id = goal_explosion_palette[i % len(goal_explosion_palette)]
             copied.team = special_loadout.team
