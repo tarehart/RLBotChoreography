@@ -3,6 +3,7 @@ import math
 from rlbot.utils.game_state_util import Rotator
 
 from util.vec import Vec3
+import numpy as np
 
 
 # This is a helper class for calculating directions relative to your car. You can extend it or delete if you want.
@@ -31,6 +32,26 @@ class Orientation:
 
     def to_rotator(self) -> Rotator:
         return Rotator(self.pitch, self.yaw, self.roll)
+
+    def to_matrix(self) -> np.ndarray:
+        mat = np.zeros((3, 3))
+
+        # front direction
+        mat[0, 0] = self.forward.x
+        mat[1, 0] = self.forward.y
+        mat[2, 0] = self.forward.z
+
+        # right direction (should be left but for some reason it is weird)
+        mat[0, 1] = self.right.x
+        mat[1, 1] = self.right.y
+        mat[2, 1] = self.right.z
+
+        # up direction
+        mat[0, 2] = self.up.x
+        mat[1, 2] = self.up.y
+        mat[2, 2] = self.up.z
+
+        return mat
 
 
 def look_at_orientation(look_at: Vec3, up_direction: Vec3) -> Orientation:

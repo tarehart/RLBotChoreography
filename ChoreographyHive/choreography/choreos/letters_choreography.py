@@ -20,6 +20,10 @@ class LettersChoreography(Choreography):
         self.bot_cnc: BotCnc = None
         self.cnc_extruders: List[CncExtruder] = []
 
+    @staticmethod
+    def get_num_bots():
+        return 24
+
     def pre_step(self, packet: GameTickPacket, drones: List[Drone]):
         pass  # Allow drones to maintain their controls state.
 
@@ -27,7 +31,7 @@ class LettersChoreography(Choreography):
 
         parser = GCodeParser()
         # This rlbot.nc is a G-code file created using StickFont: http://ncplot.com/stickfont/stickfont.htm
-        self.bot_cnc = parser.parse_file('./cnc/rlbot.nc', Vec3(-3000, 0, 1400), Vec3(0, 0, 1), 150, 2000)
+        self.bot_cnc = parser.parse_file('./cnc/igl.nc', Vec3(-3000, 1000, 500), Vec3(1, 0, 0), 150, 1200)
 
         for drone in drones:
             self.cnc_extruders.append(RadialExtruder([drone], self.bot_cnc))

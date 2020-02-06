@@ -19,7 +19,7 @@ class GCodeParser:
             for line in file:
                 if line[0] == 'G':
                     if 'F' in line:
-                        bot_cnc.activate_nozzle()
+                        bot_cnc.activate_nozzle([])
                     else:
                         bot_cnc.deactivate_nozzle()
                 elif line[0] == 'X':

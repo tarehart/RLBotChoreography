@@ -8,6 +8,8 @@ from rlbot.utils.game_state_util import GameState, CarState, Vector3, Physics, R
 from choreography.drone import Drone
 from util.orientation import look_at_orientation
 from util.vec import Vec3
+from scipy.spatial.transform import Rotation
+import numpy as np
 
 
 @dataclass
@@ -75,13 +77,19 @@ class Move(Instruction):
 
 class BotCnc:
     def __init__(self, origin: Vec3, normal: Vec3, scale: float, speed: float):
-        self.origin = origin
+        self.origin = np.array([origin.x, origin.y, origin.z])
         self.normal = normal
         self.scale = scale
         self.speed = speed
         self.previous_position = None
         self.list: List[Instruction] = []
         self.thickness_instructions: List[List[ThicknessKeyframe]] = []
+        up_vector = Vec3(0, 0, 1)
+        if self.normal.x == 0 and self.normal.y == 0:
+            up_vector = Vec3(0, 1, 0)
+        orient_basis = look_at_orientation(Vec3(0, -1, 0), Vec3(-1, 0, 0)).to_matrix()
+        self.orient_matrix = orient_basis.dot(look_at_orientation(self.normal, up_vector).to_matrix())
+        self.scale_matrix = np.array([[scale, 0, 0], [0, scale, 0], [0, 0, scale]])
 
     def activate_nozzle(self, thickness_spec: List[ThicknessKeyframe]):
         transformed_keyframes = [ThicknessKeyframe(tk.progression, tk.thickness * self.scale)
@@ -94,8 +102,9 @@ class BotCnc:
         self.list.append(BoostOff())
 
     def move_to_position(self, x: float, y: float):
-        end = self.origin + Vec3(x, y) * self.scale
-        # TODO: incorporate self.normal by doing some kind of rotation transform.
+        rotated_position = self.orient_matrix.dot(np.array([x, y, 0]))
+        end_arr = self.origin + rotated_position * self.scale
+        end = Vec3(end_arr)
         start = self.previous_position
         if start is None:
             start = end
@@ -223,11 +232,11 @@ class CncExtruder:
                 self.step_start_time = game_time
 
             total_distance_on_current_path = self.distance_on_current_path_from_prior_segments + step.motion_track.velocity.length() * elapsed
-            thickness_data = self.bot_cnc.thickness_instructions[self.path_index]
-            if len(thickness_data) > 0:
-                radius = determine_radius_from_powerstroke(self.step_index, progression, thickness_data)
-            else:
-                radius = 0
+            radius = 0
+            if len(self.bot_cnc.thickness_instructions) > self.path_index:
+                thickness_data = self.bot_cnc.thickness_instructions[self.path_index]
+                if len(thickness_data) > 0:
+                    radius = determine_radius_from_powerstroke(self.step_index, progression, thickness_data)
             car_states = self.arrange_drones(loc, vel, game_time, radius)
 
             if progression < 1:
@@ -255,7 +264,7 @@ class RadialExtruder(CncExtruder):
                 extruder_position.x,
                 extruder_position.y,
                 extruder_position.z)
-            car_state.physics.rotation = Rotator(math.pi / 2, 0, 0)
+            car_state.physics.rotation = Rotator(0, 0, 0)
             car_states[drone.index] = car_state
         else:
             radian_separation = math.pi * 2 / len(self.drones)
