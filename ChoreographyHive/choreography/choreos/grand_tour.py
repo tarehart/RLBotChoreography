@@ -151,7 +151,7 @@ class GrandTourChoreography(Choreography):
     def generate_sequence(self, drones):
         self.sequence.clear()
 
-        self.sequence.append(LetAllCarsSpawn(self.game_interface, self.get_num_bots()))
+        self.sequence.append(LetAllCarsSpawn(self.get_num_bots()))
         self.sequence.append(DroneListStep(self.position_ball))
 
         if len(drones) < 48:

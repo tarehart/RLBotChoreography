@@ -6,6 +6,7 @@ from rlbot.utils.structures.game_interface import GameInterface
 
 from choreography.drone import Drone
 from choreography.group_step import GroupStep, StepResult
+from hivemind import Hivemind
 
 
 class HideBall(GroupStep):
@@ -25,8 +26,7 @@ class HideBall(GroupStep):
 
 
 class LetAllCarsSpawn(GroupStep):
-    def __init__(self, game_interface: GameInterface, expected_num: float):
-        self.game_interface = game_interface
+    def __init__(self, expected_num: float):
         self.expected_num = expected_num
         self.start_time = None
 
@@ -34,19 +34,18 @@ class LetAllCarsSpawn(GroupStep):
         if not self.start_time:
             self.start_time = packet.game_info.seconds_elapsed
 
+        fully_spawned = len(drones) >= self.expected_num and packet.game_info.is_round_active
         elapsed = packet.game_info.seconds_elapsed - self.start_time
-
-        start_x = -4000
-        y_increment = 100
-        start_y = -4000
-        start_z = 40
-        car_states = {}
-        for drone in drones:
-            car_states[drone.index] = CarState(
-                Physics(location=Vector3(start_x, start_y + drone.index * y_increment, start_z),
-                        velocity=Vector3(0, 0, 0),
-                        rotation=Rotator(0, 0, 0)))
-        self.game_interface.set_game_state(GameState(cars=car_states))
-        active = packet.game_info.is_round_active
-
-        return StepResult(finished=len(drones) >= self.expected_num and active or elapsed > 30)
+        if not fully_spawned:
+            start_x = -4000
+            y_increment = 100
+            start_y = -4000
+            start_z = 40
+            car_states = {}
+            for drone in drones:
+                car_states[drone.index] = CarState(
+                    Physics(location=Vector3(start_x, start_y + drone.index * y_increment, start_z),
+                            velocity=Vector3(0, 0, 0),
+                            rotation=Rotator(0, 0, 0)))
+            Hivemind.game_interface.set_game_state(GameState(cars=car_states))
+        return StepResult(finished=fully_spawned or elapsed > 30)

@@ -154,6 +154,13 @@ class CncExtruder:
         int, CarState]:
         raise NotImplementedError
 
+    def peek_position(self) -> Vec3:
+        for i in range(self.step_index, len(self.bot_cnc.list)):
+            step = self.bot_cnc.list[i]
+            if step.motion_track:
+                return step.motion_track.start
+        return None
+
     def fast_forward(self, game_time, elapsed_time):
         remaining_time = elapsed_time
         while True:

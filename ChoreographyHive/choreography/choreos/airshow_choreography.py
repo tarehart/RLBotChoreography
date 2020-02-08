@@ -26,7 +26,7 @@ class AirshowChoreography(Choreography):
     def generate_sequence(self, drones):
         self.sequence.clear()
 
-        self.sequence.append(LetAllCarsSpawn(self.game_interface, self.get_num_bots()))
+        self.sequence.append(LetAllCarsSpawn(self.get_num_bots()))
         self.sequence.append(DroneListStep(self.line_up))
         self.sequence.append(BlindBehaviorStep(SimpleControllerState(), 0.3))
         self.sequence.append(BlindBehaviorStep(SimpleControllerState(throttle=0.7), 2))

@@ -237,7 +237,7 @@ class HackPatterns(Choreography):
             return
 
         self.sequence.append(HideBall(self.game_interface))
-        self.sequence.append(LetAllCarsSpawn(self.game_interface, self.get_num_bots()))
+        self.sequence.append(LetAllCarsSpawn(self.get_num_bots()))
 
         self.sequence.append(SubGroupOrchestrator(group_list=[
             HackSubgroup(self.game_interface, drones, 0)

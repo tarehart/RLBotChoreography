@@ -252,7 +252,7 @@ class FireworksChoreography(Choreography):
         self.sequence.clear()
         pause_time = 0.2
 
-        self.sequence.append(LetAllCarsSpawn(self.game_interface, len(drones)))
+        self.sequence.append(LetAllCarsSpawn(len(drones)))
         self.sequence.append(DroneListStep(self.hide_ball))
         self.sequence.append(BlindBehaviorStep(SimpleControllerState(), pause_time))
         self.sequence.append(DroneListStep(self.line_up))
@@ -275,7 +275,7 @@ class FireworksChoreography(Choreography):
                 self.sequence.append(SubGroupOrchestrator(group_list=[
                     FireworkSubChoreography(self.game_interface, self.game_info, 0, Vec3(0, 0, 50), drones, 0, True)
                 ]))
-                self.sequence.append(LetAllCarsSpawn(self.game_interface, len(drones)))
+                self.sequence.append(LetAllCarsSpawn(len(drones)))
 
     def line_up(self, packet, drones, start_time) -> StepResult:
         """

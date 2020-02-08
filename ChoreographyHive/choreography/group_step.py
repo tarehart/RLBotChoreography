@@ -1,3 +1,4 @@
+import copy
 from typing import Callable, List
 
 from rlbot.agents.base_agent import SimpleControllerState
@@ -70,7 +71,9 @@ class BlindBehaviorStep(PerDroneStep):
         self.controls = controls
 
     def blind(self, packet: GameTickPacket, drone: Drone, elapsed: float):
-        drone.ctrl = self.controls
+        # Make a defensive copy so that we don't end up having all the drones share
+        # The same controls object.
+        drone.ctrl = copy.deepcopy(self.controls)
         return StepResult(finished=False)
 
 

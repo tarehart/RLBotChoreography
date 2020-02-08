@@ -16,18 +16,19 @@ class Hivemind:
     Sends and receives data from Rocket League, and maintains the list of drones.
     """
 
+    # Sets up the logger. The string is the name of your hivemind.
+    # Call this something unique so people can differentiate between hiveminds.
+    logger = get_logger('Choreography Hivemind')
+
+    # The game interface is how you get access to things
+    # like ball prediction, the game tick packet, or rendering.
+    game_interface = GameInterface(logger)
+
     # Some terminology:
     # hivemind = the process which controls the drones.
     # drone = a bot under the hivemind's control.
 
     def __init__(self, queue, choreo_obj):
-        # Sets up the logger. The string is the name of your hivemind.
-        # Call this something unique so people can differentiate between hiveminds.
-        self.logger = get_logger('Choreography Hivemind')
-
-        # The game interface is how you get access to things
-        # like ball prediction, the game tick packet, or rendering.
-        self.game_interface = GameInterface(self.logger)
 
         self.drones = []
 

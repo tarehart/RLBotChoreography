@@ -136,7 +136,7 @@ class FlightPatterns(Choreography):
             return
 
         self.sequence.append(HideBall(self.game_interface))
-        self.sequence.append(LetAllCarsSpawn(self.game_interface, self.get_num_bots()))
+        self.sequence.append(LetAllCarsSpawn(self.get_num_bots()))
 
         self.sequence.append(SubGroupOrchestrator(group_list=[
             SlipFlight(self.game_interface, self.game_info, drones, 0, arrange_time=1)

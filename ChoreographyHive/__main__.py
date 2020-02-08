@@ -80,6 +80,7 @@ class RLBotChoreography:
         blue_yellow_loadout_file = create_looks_configurations().parse_file(os.path.join(base_path, 'appearance-blue-yellow.cfg'))
         red_blue_loadout_file = create_looks_configurations().parse_file(os.path.join(base_path, 'appearance-red-blue.cfg'))
         intro_loadout_file = create_looks_configurations().parse_file(os.path.join(base_path, 'appearance-intro.cfg'))
+        igl_loadout_file = create_looks_configurations().parse_file(os.path.join(base_path, 'appearance-igl.cfg'))
 
 
         blue_looks = load_bot_appearance(primary_loadout_file, 0)
@@ -92,6 +93,9 @@ class RLBotChoreography:
 
         blue_intro_looks = load_bot_appearance(intro_loadout_file, 0)
         red_intro_looks = load_bot_appearance(intro_loadout_file, 1)
+        orange_intro_looks = load_bot_appearance(igl_loadout_file, 1)
+        white_intro_looks = copy.deepcopy(orange_intro_looks)
+        white_intro_looks.paint_config.boost_paint_id = 12
 
         # 36   - flamethrower
         # 37   - flamethrower blue
@@ -106,9 +110,7 @@ class RLBotChoreography:
             VisualSettings(orange_looks, 1)
             ]
 
-        num_normal = 48  # Typically 39 or 48
-
-        alt_loadout_palette: List[VisualSettings] = [
+        abstract_loadout_palette: List[VisualSettings] = [
             VisualSettings(dark_blue_looks, 0),
             VisualSettings(yellow_looks, 1),
             VisualSettings(red_looks, 1)
@@ -117,6 +119,11 @@ class RLBotChoreography:
         intro_loadout_palette: List[VisualSettings] = [
             VisualSettings(blue_intro_looks, 0),
             VisualSettings(red_intro_looks, 1),
+        ]
+
+        igl_loadout_palette: List[VisualSettings] = [
+            VisualSettings(white_intro_looks, 1),
+            VisualSettings(orange_intro_looks, 1),
         ]
 
         goal_explosion_palette = [
@@ -131,6 +138,10 @@ class RLBotChoreography:
             # 4523,  # Floppy Fish
         ]
 
+        num_normal = 48  # Typically 39 or 48
+        primary_palette = igl_loadout_palette
+        secondary_palette = igl_loadout_palette
+
         player_config = match_config.player_configs[0]
         match_config.player_configs.clear()
         for i in range(max(len(bundles), self.min_bots)):
@@ -141,9 +152,9 @@ class RLBotChoreography:
                 # specific boost colors, this is a good place to do it.
                 copied.loadout_config = load_bot_appearance(looks_configs[i], 0)
             if i >= num_normal:
-                special_loadout = alt_loadout_palette[i % len(loadout_palette)]
+                special_loadout = secondary_palette[i % len(secondary_palette)]
             else:
-                special_loadout = intro_loadout_palette[i % len(intro_loadout_palette)]
+                special_loadout = primary_palette[i % len(primary_palette)]
             copied.loadout_config = copy.deepcopy(special_loadout.loadout)
             copied.loadout_config.goal_explosion_id = goal_explosion_palette[i % len(goal_explosion_palette)]
             copied.team = special_loadout.team
