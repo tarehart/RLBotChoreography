@@ -87,8 +87,8 @@ class BotCnc:
         up_vector = Vec3(0, 0, 1)
         if self.normal.x == 0 and self.normal.y == 0:
             up_vector = Vec3(0, 1, 0)
-        orient_basis = look_at_orientation(Vec3(0, -1, 0), Vec3(-1, 0, 0)).to_matrix()
-        self.orient_matrix = orient_basis.dot(look_at_orientation(self.normal, up_vector).to_matrix())
+        self.orientation = look_at_orientation(self.normal, up_vector)
+        self.orient_matrix = self.orientation.to_matrix()
         self.scale_matrix = np.array([[scale, 0, 0], [0, scale, 0], [0, 0, scale]])
 
     def activate_nozzle(self, thickness_spec: List[ThicknessKeyframe]):
@@ -102,7 +102,7 @@ class BotCnc:
         self.list.append(BoostOff())
 
     def move_to_position(self, x: float, y: float):
-        rotated_position = self.orient_matrix.dot(np.array([x, y, 0]))
+        rotated_position = self.orient_matrix.dot(np.array([0, -x, y]))
         end_arr = self.origin + rotated_position * self.scale
         end = Vec3(end_arr)
         start = self.previous_position
@@ -271,7 +271,7 @@ class RadialExtruder(CncExtruder):
                 extruder_position.x,
                 extruder_position.y,
                 extruder_position.z)
-            car_state.physics.rotation = Rotator(0, 0, 0)
+            car_state.physics.rotation = self.bot_cnc.orientation.to_rotator()
             car_states[drone.index] = car_state
         else:
             radian_separation = math.pi * 2 / len(self.drones)

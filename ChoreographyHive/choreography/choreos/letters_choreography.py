@@ -83,17 +83,17 @@ class LettersChoreography(Choreography):
 
         parser = GCodeParser()
         # This rlbot.nc is a G-code file created using StickFont: http://ncplot.com/stickfont/stickfont.htm
-        self.bot_cnc = parser.parse_file('./cnc/igl.nc', Vec3(-3000, 1000, 500), Vec3(1, 0, 0), 150, 1200)
+        self.bot_cnc = parser.parse_file('./cnc/igl.nc', Vec3(800, 5000, 50), Vec3(0, -1, 0), 120, 1200)
 
         self.cnc_extruders = [RadialExtruder([drone], self.bot_cnc) for drone in drones]
 
         self.sequence.clear()
         self.sequence.append(LetAllCarsSpawn(self.get_num_bots()))
-        self.sequence.append(PyramidStacker(Vec3(-3000, 1500, 50), look_at_orientation(Vec3(1, 0, 0), Vec3(0, 0, 1))))
-        self.sequence.append(BlindBehaviorStep(SimpleControllerState(), 5))
+        # self.sequence.append(PyramidStacker(Vec3(-3000, 1500, 50), look_at_orientation(Vec3(1, 0, 0), Vec3(0, 0, 1))))
+        # self.sequence.append(BlindBehaviorStep(SimpleControllerState(), 5))
         # self.sequence.append(BlindBehaviorStep(SimpleControllerState(boost=True), 3))
         self.sequence.append(DroneListStep(self.run_cnc))
-        self.sequence.append(BlindBehaviorStep(SimpleControllerState(), 10))
+        # self.sequence.append(BlindBehaviorStep(SimpleControllerState(), 10))
 
     def run_cnc(self, packet: GameTickPacket, drones: List[Drone], start_time) -> StepResult:
         if len(self.pre_cnc_bot_positions) == 0:
