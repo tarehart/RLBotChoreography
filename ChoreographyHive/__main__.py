@@ -93,9 +93,10 @@ class RLBotChoreography:
 
         blue_intro_looks = load_bot_appearance(intro_loadout_file, 0)
         red_intro_looks = load_bot_appearance(intro_loadout_file, 1)
-        orange_intro_looks = load_bot_appearance(igl_loadout_file, 1)
-        white_intro_looks = copy.deepcopy(orange_intro_looks)
-        white_intro_looks.paint_config.boost_paint_id = 12
+        orange_igl_looks = load_bot_appearance(igl_loadout_file, 1)
+        white_igl_looks = copy.deepcopy(orange_igl_looks)
+        white_igl_looks.paint_config.boost_paint_id = 12
+        green_igl_looks = load_bot_appearance(igl_loadout_file, 0)
 
         # 36   - flamethrower
         # 37   - flamethrower blue
@@ -122,8 +123,9 @@ class RLBotChoreography:
         ]
 
         igl_loadout_palette: List[VisualSettings] = [
-            VisualSettings(white_intro_looks, 1),
-            VisualSettings(orange_intro_looks, 1),
+            VisualSettings(white_igl_looks, 1),
+            VisualSettings(orange_igl_looks, 1),
+            # VisualSettings(green_igl_looks, 0)
         ]
 
         goal_explosion_palette = [
