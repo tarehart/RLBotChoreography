@@ -93,6 +93,7 @@ class LettersChoreography(Choreography):
         self.sequence.append(BlindBehaviorStep(SimpleControllerState(), 5))
         # self.sequence.append(BlindBehaviorStep(SimpleControllerState(boost=True), 3))
         self.sequence.append(DroneListStep(self.run_cnc))
+        self.sequence.append(BlindBehaviorStep(SimpleControllerState(), 10))
 
     def run_cnc(self, packet: GameTickPacket, drones: List[Drone], start_time) -> StepResult:
         if len(self.pre_cnc_bot_positions) == 0:
