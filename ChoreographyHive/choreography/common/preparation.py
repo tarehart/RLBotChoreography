@@ -2,7 +2,6 @@ from typing import List
 
 from rlbot.utils.game_state_util import CarState, Vector3, Rotator, Physics, GameState, BallState
 from rlbot.utils.structures.game_data_struct import GameTickPacket
-from rlbot.utils.structures.game_interface import GameInterface
 
 from choreography.drone import Drone
 from choreography.group_step import GroupStep, StepResult
@@ -10,15 +9,14 @@ from hivemind import Hivemind
 
 
 class HideBall(GroupStep):
-    def __init__(self, game_interface: GameInterface, z=3000):
-        self.game_interface = game_interface
+    def __init__(self, z=3000):
         self.z = z
 
     def perform(self, packet, drones) -> StepResult:
         """
         Places the ball above the roof of the arena to keep it out of the way.
         """
-        self.game_interface.set_game_state(GameState(ball=BallState(physics=Physics(
+        Hivemind.game_interface.set_game_state(GameState(ball=BallState(physics=Physics(
             location=Vector3(0, 0, self.z),
             velocity=Vector3(0, 0, 0),
             angular_velocity=Vector3(0, 0, 0)))))

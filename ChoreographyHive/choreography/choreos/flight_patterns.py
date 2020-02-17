@@ -135,7 +135,7 @@ class FlightPatterns(Choreography):
         if len(drones) == 0:
             return
 
-        self.sequence.append(HideBall(self.game_interface))
+        self.sequence.append(HideBall())
         self.sequence.append(LetAllCarsSpawn(self.get_num_bots()))
 
         self.sequence.append(SubGroupOrchestrator(group_list=[

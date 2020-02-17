@@ -205,7 +205,7 @@ class TorusChoreography(Choreography):
 
         pause_time = 0.2
 
-        self.sequence.append(HideBall(self.game_interface))
+        self.sequence.append(HideBall())
         self.sequence.append(LetAllCarsSpawn(self.get_num_bots()))
         self.sequence.append(BlindBehaviorStep(SimpleControllerState(), pause_time))
 

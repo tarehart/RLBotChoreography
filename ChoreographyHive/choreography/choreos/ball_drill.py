@@ -34,7 +34,7 @@ class DrillIntoTorusChoreography(Choreography):
     def generate_sequence(self, drones: List[Drone]):
 
         self.sequence.append(LetAllCarsSpawn(self.get_num_bots()))
-        self.sequence.append(HideBall(self.game_interface))
+        self.sequence.append(HideBall())
 
         if len(drones) >= self.get_num_bots():
             num_rings = 13
@@ -202,7 +202,7 @@ class BallDrillChoreography(SubGroupChoreography):
     def generate_sequence(self, drones):
         self.sequence.clear()
 
-        self.sequence.append(HideBall(self.game_interface))
+        self.sequence.append(HideBall())
         self.sequence.append(DroneListStep(self.arrange_in_ground_circle))
         self.sequence.append(DroneListStep(self.drill))
 

@@ -69,7 +69,7 @@ class MooreCurveChoreo(Choreography):
         self.game_interface = game_interface
 
     def generate_sequence(self, drones: List[Drone]):
-        self.sequence.append(HideBall(self.game_interface, -400))
+        self.sequence.append(HideBall(-400))
         self.sequence.append(LetAllCarsSpawn(self.get_num_bots()))
         self.sequence.append(SubGroupOrchestrator([MooreCurveSubgroup(self.game_interface, drones, 0)]))
 

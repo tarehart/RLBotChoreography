@@ -81,6 +81,7 @@ class RLBotChoreography:
         red_blue_loadout_file = create_looks_configurations().parse_file(os.path.join(base_path, 'appearance-red-blue.cfg'))
         intro_loadout_file = create_looks_configurations().parse_file(os.path.join(base_path, 'appearance-intro.cfg'))
         igl_loadout_file = create_looks_configurations().parse_file(os.path.join(base_path, 'appearance-igl.cfg'))
+        zombie_loadout_file = create_looks_configurations().parse_file(os.path.join(base_path, 'appearance-zombie.cfg'))
 
 
         blue_looks = load_bot_appearance(primary_loadout_file, 0)
@@ -97,6 +98,9 @@ class RLBotChoreography:
         white_igl_looks = copy.deepcopy(orange_igl_looks)
         white_igl_looks.paint_config.boost_paint_id = 12
         green_igl_looks = load_bot_appearance(igl_loadout_file, 0)
+
+        zombie_zombie_looks = load_bot_appearance(zombie_loadout_file, 0)
+        zombie_human_looks = load_bot_appearance(zombie_loadout_file, 1)
 
         # 36   - flamethrower
         # 37   - flamethrower blue
@@ -128,6 +132,14 @@ class RLBotChoreography:
             # VisualSettings(green_igl_looks, 0)
         ]
 
+        zombie_loadout_palette: List[VisualSettings] = [
+            VisualSettings(zombie_zombie_looks, 0),
+        ]
+
+        human_loadout_palette: List[VisualSettings] = [
+            VisualSettings(zombie_human_looks, 1),
+        ]
+
         goal_explosion_palette = [
             2817,  # Atomizer
             1905,  # Fireworks
@@ -140,9 +152,9 @@ class RLBotChoreography:
             # 4523,  # Floppy Fish
         ]
 
-        num_normal = 48  # Typically 39 or 48
-        primary_palette = igl_loadout_palette
-        secondary_palette = igl_loadout_palette
+        num_normal = 2  # Typically 39 or 48
+        primary_palette = human_loadout_palette
+        secondary_palette = zombie_loadout_palette
 
         player_config = match_config.player_configs[0]
         match_config.player_configs.clear()

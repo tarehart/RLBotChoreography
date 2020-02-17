@@ -77,7 +77,7 @@ class ScriptedAqua(Choreography):
         self.sequence.append(DroneListStep(self.line_up_spaced))
         self.sequence.append(BlindBehaviorStep(SimpleControllerState(), 1))
         self.sequence.append(TapBallOnCarStep(self.game_interface, drones[0]))
-        self.sequence.append(HideBall(self.game_interface, z=-1000))
+        self.sequence.append(HideBall(z=-1000))
 
         pose_duration = 6
         tunnel_end_time = pose_duration + 9
