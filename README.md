@@ -3,15 +3,41 @@
 This project can produce choreographed sequences of car motion in
 Rocket League. It's useful for making cool synchronized performances.
 
-![Bots doing the wave](wave.gif)
+## Welcome, Air Show Viewers!
+![Airshow banner](airshow.png)
+
+On Feb 20, 2020, Rocket Sledge released a youtube called the Rocket League Air Show
+featuring performances created with this code. Three different teams worked in secret,
+so the code is not merged together yet. For now we'll link you to the branches.
+
+### Scripted
+![Scripted](scripted.png)
+
+* Direction and cinematography by ColemanA, bot sequences by tarehart
+* https://github.com/tarehart/RLBotChoreography/tree/scripted
+
+### \_Fool\_
+![Fool](fool.png)
+
+* Made by \_DaCoolOne\_
+* Code link is coming soon
+
+### Awakening
+![Awakening](awakening.png)
+
+* Made by Darxeal, Will, IamEld3st, and Jeroen11dijk
+* Code link is coming soon
 
 ## Setup
+
+![Bots doing the wave](wave.gif)
 
 1. Make sure you've installed [Python 3.7 64 bit](https://www.python.org/ftp/python/3.7.4/python-3.7.4-amd64.exe). During installation:
    - Select "Add Python to PATH"
    - Make sure pip is included in the installation
 1. Download or clone this repository
-1. In a command prompt, run `pip install rlbot`
+1. In a command prompt, navigate to this directory.
+1. Run `pip install -r requirements.txt`
 
 ## Usage
 
