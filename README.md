@@ -20,7 +20,7 @@ so the code is not merged together yet. For now we'll link you to the branches.
 ![Fool](fool.png)
 
 * Made by \_DaCoolOne\_
-* Code link is coming soon
+* https://github.com/DaCoolOne/HiveWriter
 
 ### Awakening
 ![Awakening](awakening.png)
