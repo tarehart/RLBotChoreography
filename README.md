@@ -26,7 +26,7 @@ so the code is not merged together yet. For now we'll link you to the branches.
 ![Awakening](awakening.png)
 
 * Made by Darxeal, Will, IamEld3st, and Jeroen11dijk
-* Code link is coming soon
+* https://github.com/Darxeal/Choreography
 
 ## Setup
 
