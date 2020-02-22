@@ -240,5 +240,5 @@ class HackPatterns(Choreography):
         self.sequence.append(LetAllCarsSpawn(self.get_num_bots()))
 
         self.sequence.append(SubGroupOrchestrator(group_list=[
-            HackSubgroup(self.game_interface, drones, 0)
+            HackSubgroup(self.game_interface, drones, 0, arrange_time_limit=2)
         ]))

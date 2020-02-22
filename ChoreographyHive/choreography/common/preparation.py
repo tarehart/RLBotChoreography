@@ -34,7 +34,10 @@ class LetAllCarsSpawn(GroupStep):
 
         fully_spawned = len(drones) >= self.expected_num and packet.game_info.is_round_active
         elapsed = packet.game_info.seconds_elapsed - self.start_time
-        if not fully_spawned:
+        # We can rely on the framework to move cars out of the way now.
+        # This state setting is now just for backwards compatibility with how this function used to
+        # arrange cars.
+        if fully_spawned:
             start_x = -4000
             y_increment = 100
             start_y = -4000
