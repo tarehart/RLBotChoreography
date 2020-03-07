@@ -1,0 +1,6 @@
+rlbot
+svgpathtools
+quicktracer
+RLUtilities
+docopt
+scipy
