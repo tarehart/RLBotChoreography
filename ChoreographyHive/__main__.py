@@ -153,8 +153,8 @@ class RLBotChoreography:
         ]
 
         num_normal = 2  # Typically 39 or 48
-        primary_palette = human_loadout_palette
-        secondary_palette = zombie_loadout_palette
+        primary_palette = loadout_palette
+        secondary_palette = loadout_palette
 
         player_config = match_config.player_configs[0]
         match_config.player_configs.clear()
