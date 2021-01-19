@@ -8,20 +8,18 @@ Options:
     -h --help               Shows this help message.
     --bot-folder=<folder>   Searches this folder for bot configs to use for names and appearances [default: .].
 """
-import copy
+import glob
+import inspect
 import os
 import sys
-import inspect
-import time
-
-from docopt import docopt
 from importlib import reload, import_module
+from os.path import dirname, basename, isfile, join
 from queue import Queue
 from threading import Thread
-from os.path import dirname, basename, isfile, join
-import glob
 
+from docopt import docopt
 from rlbot.matchconfig.conversions import parse_match_config
+from rlbot.matchconfig.match_config import PlayerConfig
 from rlbot.parsing.agent_config_parser import load_bot_appearance
 from rlbot.parsing.directory_scanner import scan_directory_for_bot_configs
 from rlbot.parsing.rlbot_config_parser import create_bot_config_layout
@@ -29,8 +27,9 @@ from rlbot.setup_manager import SetupManager
 from rlbot.utils.structures.start_match_structures import MAX_PLAYERS
 
 import hivemind
-from queue_commands import QCommand
 from choreography.choreography import Choreography
+from queue_commands import QCommand
+
 
 # TODO:
 # - Do bot-folder from inside the GUI
@@ -66,7 +65,12 @@ class RLBotChoreography:
         player_config = match_config.player_configs[0]
         match_config.player_configs.clear()
         for i in range(max(len(bundles), self.min_bots)):
-            copied = copy.copy(player_config)
+            copied = PlayerConfig()
+            copied.bot = player_config.bot
+            copied.name = player_config.name
+            copied.rlbot_controlled = player_config.rlbot_controlled
+            copied.config_path = player_config.config_path
+            copied.team = player_config.team
             if i < len(bundles):
                 copied.name = names[i]
                 # If you want to override bot appearances to get a certain visual effect, e.g. with
