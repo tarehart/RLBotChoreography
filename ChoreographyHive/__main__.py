@@ -25,6 +25,7 @@ import glob
 
 from rlbot.matchconfig.conversions import parse_match_config
 from rlbot.matchconfig.loadout_config import LoadoutConfig
+from rlbot.matchconfig.match_config import PlayerConfig
 from rlbot.parsing.agent_config_parser import load_bot_appearance, create_looks_configurations
 from rlbot.parsing.directory_scanner import scan_directory_for_bot_configs
 from rlbot.parsing.rlbot_config_parser import create_bot_config_layout
@@ -159,7 +160,11 @@ class RLBotChoreography:
         player_config = match_config.player_configs[0]
         match_config.player_configs.clear()
         for i in range(max(len(bundles), self.min_bots)):
-            copied = copy.deepcopy(player_config)
+            copied = PlayerConfig()
+            copied.bot = player_config.bot
+            copied.name = player_config.name
+            copied.rlbot_controlled = player_config.rlbot_controlled
+            copied.config_path = player_config.config_path
             if i < len(bundles):
                 copied.name = names[i]
                 # If you want to override bot appearances to get a certain visual effect, e.g. with
